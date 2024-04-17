@@ -17,8 +17,39 @@ export default class Vector3 {
 
 	copy() { return vec3(this.x, this.y, this.z); }
 
+	copyTo(obj) {
+		obj.x = this.x;
+		obj.y = this.y;
+		obj.z = this.z;
+	}
+
+	add(v) {
+		return vec3(
+			this.x + v.x,
+			this.y + v.y,
+			this.z + v.z,
+		);
+	}
+
+	sub(v) {
+		return vec3(
+			this.x - v.x,
+			this.y - v.y,
+			this.z - v.z,
+		);
+	}
+
 	length() {
 		return ((this.x ** 2) + (this.y ** 2) + (this.x ** 2)) ** .5;
+	}
+
+	distance(v) {
+		return this.distanceSquared(v) ** .5;
+	}
+
+	distanceSquared(v) {
+		return ((this.x - v.x) ** 2 + (this.y - v.y) ** 2 + (this.z - v.z) ** 2);
+
 	}
 
 	normalize(n = 1) {

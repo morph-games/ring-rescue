@@ -12,15 +12,26 @@
 				padding: 0;
 				margin: 0;
 				overflow: hidden;
+				color: #ebd694;
+				font-family: 'Trebuchet MS', Arial, sans-serif;
+				text-align: center;
 			}
 			#canvas {
 				width: 100vmin;
 				height: 100vmin;
+				margin: 0 auto;
+			}
+			/* canvas { image-rendering: pixelated; } */
+			#goals {
+				position: absolute;
+				top: 0;
+				right: 0;
 			}
 		</style>
 	</head>
 	<body>
 		<canvas id="canvas" width="800" height="800"></canvas>
-		<b id="loaded" style="display: none"></b>
+		<p id="goals">[Tab] = 🖱️ Mouselock steering</p>
+		<i id="loaded" style="display: none"></i>
 	</body>
 </html>
