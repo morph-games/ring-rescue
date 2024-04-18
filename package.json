@@ -5,12 +5,22 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "serve": "vite dev"
+    "serve": "vite dev",
+    "rollup": "rollup ./src/game.js --file game_bundle.js --format iife",
+    "build": "npm run rollup && build.bat && filesize.bat game.zip"
   },
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "ect-bin": "^1.4.1",
+    "google-closure-compiler": "^20240317.0.0",
     "littlejsengine": "^1.7.21",
-    "vite": "^5.2.8"
+    "roadroller": "^2.1.0",
+    "uglify-js": "^3.17.4",
+    "vite": "^5.2.8",
+    "zzfx": "^1.2.1"
+  },
+  "devDependencies": {
+    "rollup": "^4.14.3"
   }
 }
