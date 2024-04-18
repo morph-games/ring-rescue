@@ -36,8 +36,9 @@ let rotation = 0;
 const steer = { rx: -90, ry: 0, rz: 0 };
 const physicsEnts = [ship];
 const renderables = {};
-const gen = new RandomGenerator(123);
-// https://lospec.com/palette-list/arjibi8
+const seed = 1233;
+const gen = new RandomGenerator(seed);
+
 // + https://lospec.com/palette-list/moondrom
 const BG_COLOR = '2a242b';
 const SHIP_COLOR = '5796a1';
@@ -49,7 +50,9 @@ const P2_COLOR = 'b0455a';
 const SUN_COLOR = '#de8b6f'; // 'ff6633'
 const STAR_COLOR = '#ebd694';
 const SPACE_COLOR = '0000';
-const PLASMA_COLOR = '#702782';
+const PLASMA_COLOR1 = '#702782';
+const PLASMA_COLOR2 = '#90d59c';
+// https://lospec.com/palette-list/arjibi8
 // 8bc7bf - light cyan
 // 5796a1 - dark cyan
 // 524bb3 - blue
@@ -58,9 +61,14 @@ const PLASMA_COLOR = '#702782';
 // b0455a - red
 // de8b6f - orange
 // ebd694 - yellow
+// https://lospec.com/palette-list/moondrom
+// 2a242b - dark gray
+// 90d59c - green
 const textures = {};
 const achievements = [
-	'Check steering: [Tab] to toggle mouse-lock'
+	'Check steering: [Tab] to toggle mouse-lock',
+	'Thrusters: [W]',
+	'Fire weapons: [Space] or [Click]',
 ].map((t) => ({ t, done: 0 }));
 
 function rad2deg(rad) { return rad * (180/PI); }
@@ -87,6 +95,19 @@ function addAngles(a, b) {
 
 function loop(n, fn) {
 	for (let i = 0; i < n; i += 1) { fn(i, n); }
+}
+const $id = (id) => doc.getElementById(id);
+
+function achieve(i) {
+	if (achievements[i].done) return;
+	achievements[i].done = 1;
+	updateAchievements();
+}
+
+function updateAchievements() {
+	$id('goals').innerHTML = achievements.map(
+		({ t, done }) => `<li class="${ done ? 'done' : ''}">${t}</li>`,
+	).join('');
 }
 
 // Cube
@@ -139,18 +160,18 @@ function getXYCoordinatesFromPolar(angle, r) {
 }
 
 function makeCanvas(id, size) {
-	const existingElt = doc.getElementById(id);
+	const existingElt = $id(id);
 	const elt = existingElt || doc.createElement('canvas');
 	elt.id = id;
 	elt.width = elt.height = size;
-	if (!existingElt) doc.querySelector('#loaded').appendChild(elt);
+	if (!existingElt) $id('loaded').appendChild(elt);
 	return [elt, elt.getContext('2d'), size / 2];
 }
 
 function makeStarFieldCanvas(id) {
 	const size = 800;
 	const [cElt, c] = makeCanvas(id, size);
-	loop(1000, () => {
+	loop(1400, () => {
 		c.rect(gen.int(0, size), gen.int(0, size), 1, 1);
 	});
 	c.fillStyle = STAR_COLOR;
@@ -158,19 +179,18 @@ function makeStarFieldCanvas(id) {
 	return cElt;
 }
 
-function makeStarCanvas({ points = 4, color = '#f00', id, depth = .4, size = 600 } = {}) {
+function makeStarCanvas(points = 4, color = '#f00', id, depth = .4, size = 600) {
 	const [cElt, c, h] = makeCanvas(id, size);
 	c.clearRect(0, 0, size, size);
 	c.beginPath();
-	const angle = TWO_PI / points;
+	const a = TWO_PI / points;
 	const line = (a, r) => {
 		const { x, y } = getXYCoordinatesFromPolar(a, r);
 		c.lineTo(h + x, h + y);
 	};
 	loop(points, (i) => {
-		const a = angle * i;
-		line(a, h);
-		line(a + (angle / 2), h * depth);
+		line(a * i, h);
+		line(a * i + (a / 2), h * depth);
 	});
 	c.fillStyle = color;
 	c.fill();
@@ -178,16 +198,17 @@ function makeStarCanvas({ points = 4, color = '#f00', id, depth = .4, size = 600
 }
 
 function setup() {
-	const c = doc.getElementById('canvas');
+	const c = $id('canvas');
 	input.setup({
 		lockElt: c,
 		keys: {
-			Tab: () => input.toggleLock(),
+			Tab: () => { achieve(0); input.toggleLock(); },
 			// w: shipThrust(1)
 		}
 	});
-	textures.tf = makeStarCanvas({ points: 9, color: STAR_COLOR, id: 'tf', depth: .3 });
-	textures.plasma = makeStarCanvas({ points: 11, color: PLASMA_COLOR, id: 'plasma', depth: .2 });
+	textures.tf = makeStarCanvas(9, STAR_COLOR, 'tf', .3);
+	textures.plasma = makeStarCanvas(11, PLASMA_COLOR2, 'plasma', .2);
+	textures.photon = makeStarCanvas(13, PLASMA_COLOR1, 'photon', .5);
 	 
 
 	c.addEventListener('click', () => {
@@ -204,9 +225,9 @@ function setup() {
 	// Groups and objects
 	W.group({ n: 'system' });
 	['sun', 'ring', 'p1', 'p2'].forEach((n) => W.group({ n, g: 'system' }));
-	['ship', 'skybox'].forEach((n) => W.group({ n }));
+	['ship', 'skybox'].forEach((n) => W.group({ n })); // Are not in a group
 
-	const sunFlare = makeStarCanvas({ points: 16, color: `${SUN_COLOR}88`, id: 'sun', depth: .7 });
+	const sunFlare = makeStarCanvas(16, `${SUN_COLOR}88`, 'sun', .7);
 
 	W.sphere({ n: 'outerSun', g: 'sun', size: 50, b: `${SUN_COLOR}88` });
 	W.sphere({ n: 'innerSun', g: 'sun', size: 46, b: SUN_COLOR });
@@ -219,12 +240,12 @@ function setup() {
 		const size = skyboxDist * 2;
 		const t = makeStarFieldCanvas('sf');
 		[
-			{ z: -skyboxDist, b, t }, // : '331122' },
-			{ y: -skyboxDist, rx: -90, b, t }, // : '113322' },
-			{ y: skyboxDist, rx: 90, b, t }, //: '113322' },
-			{ x: -skyboxDist, ry: 90, b, t }, //: '112233' },
-			{ x: skyboxDist, ry: -90, b, t }, //: '112233' },
-			{ z: skyboxDist, rx: 180, b, t }, //: '331122' },
+			{ z: -skyboxDist, b, t },
+			{ y: -skyboxDist, rx: -90, b, t },
+			{ y: skyboxDist, rx: 90, b, t },
+			{ x: -skyboxDist, ry: 90, b, t },
+			{ x: skyboxDist, ry: -90, b, t },
+			{ z: skyboxDist, rx: 180, b, t },
 		].forEach((settings, i) => {
 			W.plane({ b: '000', ...settings, n: `skybox${i}`, g: 'skybox', size });
 		});
@@ -311,6 +332,7 @@ function setup() {
 		renderables[crate.n] = crate;
 		W.cube(crate);
 	});
+	updateAchievements();
 }
 
 function thrust(o, amount = 0) {
@@ -412,34 +434,36 @@ function update() {
 		W.delete('shipEngineIgnite1');
 		W.delete('shipEngineIgnite2');
 	} else {
+		achieve(1);
 		const base = { g: 'ship', y: shipSize * -1.31, rx: 90, size: .2, t: textures.tf };
 		W.plane({ ...base, n: 'shipEngineIgnite1', x: -shipSize * .6  });
 		W.plane({ ...base, n: 'shipEngineIgnite2', x: shipSize * .6 });
 	}
 	const click = input.getClick();
 	if (ship.fireCooldown === 0 && (
-		input.down[' '] || (click && click.left && click.locked)
+		input.down[' '] || (click && click.locked)
 	)) {
+		achieve(2);
 		const { x, y, z } = ship;
 		const u = getDirectionUnit(ship);
-		const v = u.scale(30).add(ship.vel); // scale 26 works well with thrust scale 0.1
+		const v = u.scale(click.left ? 40 : 15).add(ship.vel); // scale 26 works well with thrust scale 0.1
 		const plasma = {
 			n: 'plasma' + uid(),
 			g: 'system',
 			passType: 'plasma',
 			x, y, z,
 			vel: { ...v }, // TODO: add velocity in
-			thrust: { ...u.scale(0.0005) },
+			thrust: { ...u.scale(click.left ? 0.0005 : 0.0001) },
 			friction: 0,
 			decay: 4,
-			damage: 1,
+			damage: click.left ? 1 : 2,
 			r: 0.5,
 			passthru: ['ship', 'plasma'],
 			mass: 0.01,
 		};
 		physicsEnts.push(plasma);
 		renderables[plasma.n] = plasma;
-		W.billboard({ ...plasma, size: 1, t: textures.plasma });
+		W.billboard({ ...plasma, size: 1, t: click.left ? textures.plasma : textures.photon });
 		ship.fireCooldown = 0.3;
 	}
 
