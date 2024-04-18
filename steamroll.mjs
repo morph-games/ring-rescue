@@ -8,6 +8,7 @@ const BUILD_FOLDER = 'build';
 const BUILD_FILENAME = 'index.js';
 const OUTPUT_HTML_FILENAME = 'index.html';
 
+const LOG_PATH = [BUILD_FOLDER, 'log.json'].join('/');
 const SOURCE_HTML_PATH = 'index.html';
 const ZIP_PATH = [BUILD_FOLDER, ZIP_NAME].join('/');
 const OUTPUT_HTML_PATH = [BUILD_FOLDER, OUTPUT_HTML_FILENAME].join('/');
@@ -35,6 +36,26 @@ function findReplaceString(html, code) {
 	}
 	const chunks = html.split(code);
 	return chunks[1].split('-->')[0].trim();
+}
+
+function readLog() {
+	let log = [];
+	try {
+		const logString = fs.readFileSync(LOG_PATH, 'utf8');
+		log = JSON.parse(logString);
+	} catch (err) {
+		// no worries
+	}
+	return log;
+}
+
+function writeLog(log = [], size = null) {
+	log.push({
+		date: Number(new Date()),
+		size,
+	});
+	const logString = JSON.stringify(log, null, ' ');
+	fs.writeFileSync(LOG_PATH, logString);
 }
 
 async function clean() {
@@ -79,7 +100,7 @@ async function compressJavaScript() {
 	// roadroller compresses the code better then zip
 	await command(`npx roadroller ${uglify_path} -o ${roadrolled_path}`);
 	// TODO: Use roadrolled result instead of uglify
-	// return roadrolled_path
+	// return roadrolled_path;
 	return uglify_path;
 }
 
@@ -99,15 +120,18 @@ async function checkSize(zipPath) {
 				: `You have room: ${MAX_BYTES - size} bytes`
 		)
 	);
+	return size;
 	// command(`npm run check`);
 }
 
 async function run() {
+	const log = readLog();
 	await clean();
 	const jsPath = await compressJavaScript();
 	await buildHtml(SOURCE_HTML_PATH, jsPath);
 	const zipPath = await zip();
-	checkSize(zipPath);
+	const size = await checkSize(zipPath);
+	writeLog(log, size);
 }
 
 run();
