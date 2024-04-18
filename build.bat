@@ -46,6 +46,11 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b %ERRORLEVEL%
 )
 
+rem Build the HTML
+rem cd ..
+rem call node build_index.js
+rem cd %BUILD_FOLDER%
+
 rem build the html, you can add html header and footers here
 echo ^<html^>^<head^>^<meta charset=utf-8^> >> index.html
 type ..\head.html >> index.html

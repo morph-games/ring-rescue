@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "serve": "vite dev",
-    "rollup": "rollup ./src/game.js --file game_bundle.js --format iife",
-    "build": "npm run rollup && build.bat && filesize.bat game.zip"
+    "check": "filesize.bat build/game.zip",
+    "build": "node steamroll.mjs"
   },
   "author": "",
   "license": "MIT",
