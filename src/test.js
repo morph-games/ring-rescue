@@ -69,6 +69,35 @@ function calculateRotations(objectPos, targetPos, upVector = { x: 0, y: 1, z: 0 
     return { pitch, yaw, roll };
 }
 
+function vectorToAngles(objectPos, targetPos) {
+    const direction = {
+        x: targetPos.x - objectPos.x,
+        y: targetPos.y - objectPos.y,
+        z: targetPos.z - objectPos.z
+    };
+    // Calculate yaw (rotation around z-axis)
+    let yaw = Math.atan2(direction.y, direction.x);
+
+    // Calculate pitch (rotation around y-axis)
+    let pitch = Math.atan2(-direction.z, Math.sqrt(direction.x * direction.x + direction.y * direction.y));
+
+    // Calculate roll (rotation around x-axis)
+    let roll = 0; // By default, assume roll is 0
+
+    // If the target vector is not parallel to the xy-plane
+    if (direction.x !== 0 || direction.y !== 0) {
+        // Calculate the projected vector onto the xy-plane
+        let projectedVector = {
+            x: Math.sqrt(direction.x * direction.x + direction.y * direction.y),
+            y: 0,
+            z: direction.z
+        };
+        // Calculate the angle between the projected vector and the z-axis
+        roll = Math.atan2(projectedVector.z, projectedVector.x);
+    }
+    return { roll, pitch, yaw };
+}
+
 
 
 
@@ -80,9 +109,9 @@ function deg2rad(deg) { return deg * (PI/180); }
 function rotationVector3ToW(v) {
 	if (typeof v.pitch === 'number') {
 		return {
-			rx: rad2deg(v.pitch),
-			ry: rad2deg(v.yaw),
-			rz: rad2deg(v.roll),
+			rx: rad2deg(v.roll),
+			ry: rad2deg(v.pitch),
+			rz: rad2deg(v.yaw),
 		};
 	}
 	return {
@@ -118,9 +147,19 @@ W.cube({ z: 20, size: 2, b: '22d' });
 const wait = (t) => (new Promise((resolve) => setTimeout(resolve, t)));
 
 const coords = [
-	[1, 0, 0],
+	[0, 0, 0],
+	[0, 0, 1],
+	[0, 1, 1],
+	[0, 1, 0],
+	[1, 0, 0], // same as [0, 0, 0]
 	[1, 1, 0],
-	// [-1, -1, 0],
+	[0, 1, 0],
+	[-1, 1, 0],
+	[-1, 0, 0],
+	[-1, -1, 0],
+	[0, -1, 0],
+	[1, -1, 0],
+	[0, 0, 0],
 	// [-1, 0, 0],
 	// [0, 1, 0],
 	// [0, -1, 0],
@@ -134,7 +173,8 @@ async function display(i) {
 	const [x, y, z] = coords[i];
 	const v = vec3(x, y, z);
 	// const rotVector = vec3().getLookAtRotation(v);
-	const rotVector = calculateRotations(vec3(), v);
+	// const rotVector = calculateRotations(vec3(), v);
+	const rotVector = vec3().toAngles(v);
 	const rot = rotationVector3ToW(rotVector);
 	console.log(v, rotVector, rot);
 	W.move({ n: g, ...rot, a: 800 }, 200);
@@ -143,3 +183,6 @@ async function display(i) {
 }
 
 display(0);
+
+// Appears to be applying rotations in XYZ order
+// W.move({ n: g, rx: 90, ry: 90, rz: 90, a: 800 }, 500);

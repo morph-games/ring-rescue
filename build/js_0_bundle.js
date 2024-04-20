@@ -705,7 +705,11 @@
   // Based off LittleJS's Vector2:
   // https://github.com/KilledByAPixel/LittleJS/blob/main/build/littlejs.esm.js#L693
   const vec3 = (x,y,z) => new Vector3(x,y,z);
-  const sin = Math.sin, cos = Math.cos;
+  // const sin = Math.sin, cos = Math.cos, atan2 = Math.atan2;
+  const { abs, sin, cos, asin, acos, atan2, PI: PI$1, sqrt } = Math;
+
+  const rad2deg = (rad) => rad * (180/PI$1);
+  const deg2rad = (deg) => deg * (PI$1/180);
 
   class Vector3 {
   	constructor(x = 0, y = 0, z = 0) {
@@ -744,7 +748,11 @@
   	}
 
   	length() {
-  		return ((this.x ** 2) + (this.y ** 2) + (this.x ** 2)) ** .5;
+  		return this.lengthSquared() ** .5;
+  	}
+
+  	lengthSquared() {
+  		return ((this.x ** 2) + (this.y ** 2) + (this.z ** 2));
   	}
 
   	distance(v) {
@@ -764,6 +772,15 @@
 
   	scale(s) {
   		return vec3(this.x * s, this.y * s, this.z * s);
+  	}
+
+  	cross(v) {
+  		const { x, y, z } = this;
+  		return vec3(
+  			y * v.z - z * v.y,
+  			z * v.x - x * v.z,
+  			x * v.y - y * v.x,
+  		);
   	}
 
   	rotate(angleX, angleY, angleZ) {
@@ -793,6 +810,155 @@
   			this.z,
   		);
   	}
+
+  	toAngles(targetVector) {
+  		let { x, y, z } = this;
+  		if (targetVector) {
+  			// return vec3(targetVector).sub(this).toAngles();
+  			x = targetVector.x - x;
+  			y = targetVector.y - y;
+  			z = targetVector.z - z;
+  		}
+  		// Calculate yaw (rotation around z-axis)
+  		const yaw = atan2(y, x);
+  	
+  		// Calculate pitch (rotation around y-axis)
+  		const pitch = atan2(-z, sqrt(x * x + y * y));
+  	
+  		// Calculate roll (rotation around x-axis)
+  		let roll = 0; // By default, assume roll is 0
+  	
+  		// If the target vector is not parallel to the xy-plane
+  		if (x !== 0 || y !== 0) {
+  			// Calculate the projected vector onto the xy-plane
+  			const projectedVector = {
+  				x: sqrt(x * x + y * y),
+  				y: 0,
+  				z
+  			};
+  			// Calculate the angle between the projected vector and the z-axis
+  			roll = atan2(projectedVector.z, projectedVector.x);
+  		}
+  		return { roll, pitch, yaw };
+  	}
+
+  	toWAngles(targetVector) {
+  		const { roll, pitch, yaw } = this.toAngles(targetVector);
+  		return {
+  			rx: rad2deg(roll),
+  			ry: rad2deg(pitch),
+  			rz: rad2deg(yaw),
+  		};
+  	}
+
+  	/*
+  	toAngles() {
+  		const { x, y, z } = this.normalize();
+  		return {
+  			yaw: atan2(x, z),
+  			pitch: atan2(y, sqrt(x ** 2 + z ** 2)),
+  		};
+  	}
+
+  	toRotationMatrices() {
+  		const { yaw, pitch } = this.toAngles();
+  		const rmy = [ // rotation matrix for yaw (horizontal rotation around y-axis)
+  			[cos(yaw), 0, -sin(yaw)],
+  			[0, 1, 0],
+  			[sin(yaw), 0, cos(yaw)],
+  		];
+  		const rmx = [
+  			[1, 0, 0],
+  			[0, cos(pitch), sin(pitch)],
+  			[0, -sin(pitch), cos(pitch)],
+  		];
+  		return {
+  			rmx,
+  			rmy,
+  			rmz: multiplyMatrices(rmy, rmx),
+  		};
+  	}
+
+  	toRotations() {
+  		const { rmx, rmy, rmz } = this.toRotationMatrices();
+  		return {
+  			rx: atan2(rmy[2][1], rmy[2][2]),
+  			ry: atan2(-rmy[2][0], sqrt(
+  				rmx[2][1] ** 2 + rmx[2][2] ** 2 
+  			)),
+  			rz: atan2(rmx[1][0], rmx[0][0]),
+  		};
+  	}
+
+  	// Theta represents the rotation around the Y-axis,
+  	// and phi represents the angle from the positive Z-axis.
+  	toSpherical() {
+  		const { x, y, z } = this;
+  		const radius = this.length();
+  		return {
+  			radius,
+  			theta: atan2(x, z),
+  			phi: acos(y / radius),
+  		};
+  	}
+
+  	// From https://gemini.google.com/app/98d37f6718cb75c3
+  	getLookAtRotation(target, up = vec3(0, 1, 0)) {
+  		const direction = vec3(target).sub(this).normalize();
+  		console.log('--------\n\t', { ...direction });
+  		// Handle zero-length direction (object already at target)
+  		// No need to rotate if already facing target
+  		if (direction.lengthSquared() === 0) return;
+  		// Create orthogonal vector (assuming uniform scale) ???
+  		// const right = vec3(up).cross(direction).normalize();
+  		const right = direction.cross(up).normalize();
+  		console.log('\tright:', { ...right });
+
+  		// Create final up vector (completing the basis) ???
+  		const finalUp = direction.cross(right).normalize();
+  		// Construct rotation matrix (assuming uniform scale)
+  		const rotationMatrix = new Float32Array([
+  			right.x, right.y, right.z, 0,
+  			finalUp.x, finalUp.y, finalUp.z, 0,
+  			direction.x, direction.y, direction.z, 0,
+  			0, 0, 0, 1,
+  		]);
+  		// Apply rotation matrix to object (assuming object has a rotation property)
+  		// rotation.setFromRotationMatrix(rotationMatrix);
+  		return Vector3.rotationMatrixToEuler(rotationMatrix);
+  	}
+
+  	static rotationMatrixToEuler(matrix = []) {
+  		// Check matrix dimensions (should be 4x4)
+  		// if (matrix.length !== 16) {
+  		// 	console.error("Invalid matrix size. Expected 4x4 matrix.");
+  		// 	return null;
+  		// }
+  		const m11 = matrix[0],
+  			m12 = matrix[1],
+  			m13 = matrix[2],
+  			m21 = matrix[4],
+  			m22 = matrix[5],
+  			m23 = matrix[6],
+  			m31 = matrix[8],
+  			m32 = matrix[9],
+  			m33 = matrix[10];
+  		// Potential gimbal lock - check for close to -1 or 1 in m22
+  		const epsilon = 0.000001;
+  		if (abs(m22) > (1 - epsilon)) {
+  			console.warn("Gimbal lock detected. Euler angles may be inaccurate.");
+  			// Handle Gimbal Lock (choose one approach based on your needs)
+  			// Option 1: Set one angle to zero (e.g., set x to zero)
+  			// return { x: 0, y: atan2(m13, m33), z: atan2(m21, m23) };
+  			// Other options: Use alternate calculation (https://www.euclideanspace.com/maths/rotations/conversions/matrixtoeuler.htm)
+  		}
+  		// Assuming no gimbal lock
+  		return vec3(
+  			atan2(-m31, m11), asin(m23), atan2(-m21, m22)
+  		);
+  	}
+  	*/
+  	  
   }
 
   // From LittleJS
@@ -829,113 +995,6 @@
       /** Randomly returns either -1 or 1 deterministically
       *  @return {Number} */
       sign() { return this.randInt(2) * 2 - 1; }
-  }
-
-  // const { W } = window;
-
-  // Note that max distance is 1000
-  // So world can be -500 --> 500 in any dimensions
-  // Solar system is 30 trillion km diameter
-  // so if the scale matches, then each 1.0 unit = 30 billion km
-  const MAX_VEL = 1000;
-  const SPACE_SIZE = 499;
-  const skyboxDist = SPACE_SIZE;
-  const PI = Math.PI;
-  const TWO_PI = PI * 2;
-  const VEL_FRICTION = 1 / 10000;
-  const SHIP_THRUST = 0.01;
-
-  const doc = document;
-
-  const shipSize = 0.3;
-  const sun = { rx: 0, ry: 0, ry: 0 };
-  const ship = {
-  	x: 0, y: 0, z: SPACE_SIZE,
-  	rx: -90, ry: 0, rz: 0,
-  	vel: { x: 0, y: 0, z: -16 },
-  	thrust: { x: 0, y: 0, z: 0 },
-  	fireCooldown: 0,
-  	r: 2, // collision radius
-  	passType: 'ship',
-  	passthru: ['plasma'],
-  };
-  const t = 1000 / 60;
-  const camOffset = { back: -shipSize * 5, up: shipSize * 1.7, rx: 80, ry: 0, rz: 0 };
-  const steer = { rx: -90, ry: 0, rz: 0 };
-  const physicsEnts = [ship];
-  const renderables = {};
-  const seed = 1233;
-  const gen = new RandomGenerator(seed);
-
-  // + https://lospec.com/palette-list/moondrom
-  const BG_COLOR = '2a242b';
-  const SHIP_COLOR = '5796a1';
-  const SHIP_COLOR2 = '8bc7bf';
-  const RING_COLOR = '5796a1';
-  const RING_COLOR2 = '478691';
-  const P1_COLOR = '471b6e';
-  const P2_COLOR = 'b0455a';
-  const SUN_COLOR = '#de8b6f'; // 'ff6633'
-  const STAR_COLOR = '#ebd694';
-  const SPACE_COLOR = '0000';
-  const PLASMA_COLOR1 = '#702782';
-  const PLASMA_COLOR2 = '#90d59c';
-  // https://lospec.com/palette-list/arjibi8
-  // 8bc7bf - light cyan
-  // 5796a1 - dark cyan
-  // 524bb3 - blue
-  // 471b6e - darkest (purple)
-  // 702782 - purple light
-  // b0455a - red
-  // de8b6f - orange
-  // ebd694 - yellow
-  // https://lospec.com/palette-list/moondrom
-  // 2a242b - dark gray
-  // 90d59c - green
-  const textures = {};
-  const achievements = [
-  	'Check steering: [Tab] to toggle mouse-lock',
-  	'Thrusters: [W]',
-  	'Fire weapons: [Space] or [Click]',
-  ].map((t) => ({ t, done: 0 }));
-
-  function rad2deg(rad) { return rad * (180/PI); }
-  function deg2rad(deg) { return deg * (PI/180); }
-  function uid() { return String(Number(new Date())); }
-  // Some functions here from LittleJS utilities
-  function clamp(value, min=0, max=1) { return value < min ? min : value > max ? max : value; }
-  function lerp(percent, valueA, valueB) { return valueA + clamp(percent) * (valueB-valueA); }
-  function rand(valueA=1, valueB=0) { return valueB + Math.random() * (valueA-valueB); }
-
-  function rotateByDegree(v, o) {
-  	return v.rotate(deg2rad(o.rx), deg2rad(o.ry), deg2rad(o.rz));
-  }
-  function getDirectionUnit(o) {
-  	return rotateByDegree(vec3(0, 1, 0), o);
-  }
-  function addAngles(a, b) {
-  	let { rx, ry, rz } = a;
-  	rx += b.rx;
-  	ry += b.ry;
-  	rz += b.rz;
-  	return { rx, ry, rz };
-  }
-
-  function loop(n, fn) {
-  	for (let i = 0; i < n; i += 1) { fn(i, n); }
-  }
-  const $id = (id) => doc.getElementById(id);
-
-  function achieve(i) {
-  	if (achievements[i].done) return;
-  	achievements[i].done = 1;
-  	updateAchievements();
-  }
-
-  function updateAchievements() {
-  	$id('goals').innerHTML = achievements.map(
-  		({ t, done }) => `<li class="${ done ? 'done' : ''}">${t}</li>`,
-  	).join('');
   }
 
   // Cube
@@ -979,6 +1038,137 @@
   		1, 1,   0, 0,   1, 0
   		]
   	});
+  }
+
+  // const { W } = window;
+
+  const { min, max, PI } = Math;
+
+  // Note that max distance is 1000
+  // So world can be -500 --> 500 in any dimensions
+  // Solar system is 30 trillion km diameter
+  // so if the scale matches, then each 1.0 unit = 30 billion km
+  const MAX_VEL = 1000;
+  const SPACE_SIZE = 499;
+  const skyboxDist = SPACE_SIZE;
+  const TWO_PI = PI * 2;
+  const VEL_FRICTION = 1 / 10000;
+  const SHIP_THRUST = 0.01;
+  const KLAX_THRUST = 0.003;
+
+  const doc = document;
+
+  const shipSize = 0.3;
+  const sun = { rx: 0, ry: 0, ry: 0 };
+  const ship = {
+  	x: 0, y: 0, z: SPACE_SIZE,
+  	rx: -90, ry: 0, rz: 0,
+  	vel: { x: 0, y: 0, z: -16 },
+  	thrust: { x: 0, y: 0, z: 0 },
+  	fireCooldown: 0,
+  	r: 2, // collision radius
+  	passType: 'ship',
+  	passthru: ['plasma'],
+  	shieldOpacity: 0,
+  	sight: 700,
+  	aggro: 0,
+  	thrustCooldown: 0,
+  	hp: 5,
+  	facing: { x: 0, y: 1, z: 0 },
+  };
+  const klaxShip = {
+  	...structuredClone(ship),
+  	passType: 'klaxShip',
+  	passthru: ['klaxPlasma'],
+  	facing: { x: 1, y: 0, z: 0 },
+  };
+  const klaxShips = [];
+  const t = 1000 / 60;
+  const camOffset = { back: -shipSize * 5, up: shipSize * 1.7, rx: 80, ry: 0, rz: 0 };
+  const steer = { rx: -90, ry: 0, rz: 0 };
+  const physicsEnts = [ship];
+  const renderables = {};
+  const seed = 1233;
+  const gen = new RandomGenerator(seed);
+
+  // + https://lospec.com/palette-list/moondrom
+  const BG_COLOR = '2a242b';
+  const SHIP_COLOR = '5796a1';
+  const SHIP_COLOR2 = '8bc7bf';
+  const RING_COLOR = '5796a1';
+  const RING_COLOR2 = '478691';
+  const P1_COLOR = '775b5b';
+  const P2_COLOR = 'b0455a';
+  const SUN_COLOR = '#de8b6f'; // 'ff6633'
+  const STAR_COLOR = '#ebd694';
+  const SPACE_COLOR = '0000';
+  const PLASMA_COLOR1 = '#702782';
+  const PLASMA_COLOR2 = '#90d59c';
+  const KSHIP_COLOR1 = '471b6e';
+  const KSHIP_COLOR2 = '372b4e';
+  const KSHIP_COLOR3 = '90d59c';
+  // https://lospec.com/palette-list/arjibi8
+  // 8bc7bf - light cyan
+  // 5796a1 - dark cyan
+  // 524bb3 - blue
+  // 471b6e - darkest (purple)
+  // 702782 - purple light
+  // b0455a - red
+  // de8b6f - orange
+  // ebd694 - yellow
+  // https://lospec.com/palette-list/moondrom
+  // 2a242b - dark gray
+  // 90d59c - green
+  const textures = {};
+  const achievements = [
+  	'Check steering: [Tab] to toggle mouse-lock',
+  	'Thrusters: [W]',
+  	'Fire weapons: [Space] or [Click]',
+  ].map((t) => ({ t, done: 0 }));
+
+  function uid() { return String(Number(new Date())); }
+  // Some functions here from LittleJS utilities
+  function clamp(value, min=0, max=1) { return value < min ? min : value > max ? max : value; }
+  function lerp(percent, valueA, valueB) { return valueA + clamp(percent) * (valueB-valueA); }
+  function rand(valueA=1, valueB=0) { return valueB + Math.random() * (valueA-valueB); }
+
+  const randCoord = () => gen.rand(-SPACE_SIZE, SPACE_SIZE);
+  const randCoords = () => ({
+  	x: randCoord(),
+  	y: randCoord(),
+  	z: randCoord(),
+  });
+
+  function rotateByDegree(v, o) {
+  	return v.rotate(deg2rad(o.rx), deg2rad(o.ry), deg2rad(o.rz));
+  }
+  function getDirectionUnit(o) {
+  	const { facing } = o;
+  	return rotateByDegree(vec3(facing), o);
+  }
+  function addAngles(a, b) {
+  	let { rx, ry, rz } = a;
+  	rx += b.rx;
+  	ry += b.ry;
+  	rz += b.rz;
+  	return { rx, ry, rz };
+  }
+
+  function loop(n, fn) {
+  	for (let i = 0; i < n; i += 1) { fn(i, n); }
+  }
+  const $id = (id) => doc.getElementById(id);
+
+  function achieve(i) {
+  	if (achievements[i].done) return;
+  	achievements[i].done = 1;
+  	updateAchievements();
+  }
+
+  function updateAchievements() {
+  	$id('goals').innerHTML = achievements.map(
+  		({ t, done }) => `<li class="${ done ? 'done' : ''}">${t}</li>`,
+  	).join('');
   }
 
   function getXYCoordinatesFromPolar(angle, r) {
@@ -1025,6 +1215,47 @@
   	return cElt;
   }
 
+  function makeKlaxShip(i) {
+  	const n = `k${i}`;
+  	const b = KSHIP_COLOR1;
+  	const pos = randCoords();
+  	// const { rx, ry, rz } = vec3().toWAngles(vec3(ship));
+  	const k = {
+  		n,
+  		...structuredClone(klaxShip),
+  		...pos, size: 5, radius: 5,
+  		// rx, ry, rz,
+  	};
+  	// console.log(k);
+  	W.group({ n, g: 'system', ...pos,
+  		// rx, ry, rz,
+  	});
+  	const g = n;
+  	const core = { g, size: 2.5, x: -1.5, b: KSHIP_COLOR2 };
+  	const strut = { g, size: 2, b: KSHIP_COLOR1 };
+  	W.cube({ ...core, n: n + 'c', rx: 45, b: KSHIP_COLOR1 });
+  	loop(4, (i) => {
+  		W.cube({ ...core, n: `${n}cc${i}`, x: -2 - i, size: 2.5 - (0.5 * i),
+  			// rx: 45 + (i * 45),
+  		});
+  		// W.cube({ ...core, n: `${n}c${i}`, x: -2 - i, y: rand(-1, 1), z: rand(-1, 1), size: rand(2, 3),
+  		// 	rx: rand(-10, 10), ry: rand(-10, 10), b: KSHIP_COLOR2 });
+  	});
+  	W.pyramid({ n: n + 'nose', rz: -90, g, size: 1.5, b: KSHIP_COLOR3 });
+  	
+  	W.longRect({ ...strut, n: n + 'wing1', y: 2, rx: 90, ry: 45, rz: -45, });
+  	W.longRect({ ...strut, n: n + 'wing2', y: 2, x: 1.5, rx: 90, ry: 45, rz: 45, b });
+  	W.longRect({ ...strut, n: n + 'wing3', y: -2, rx: 90, ry: 45, rz: 45, });
+  	W.longRect({ ...strut, n: n + 'wing4', y: -2, x: 1.5, rx: 90, ry: 45, rz: -45, b });
+  	W.sphere({ n: n + 'shield', g, size: 10, b: 'ebd69403' });
+  	// addAxisCubes(g, 4);
+  	
+  	physicsEnts.push(k);
+  	renderables[k.n] = k;
+  	klaxShips.push(k);
+  }
+
+
   function setup() {
   	const c = $id('canvas');
   	input.setup({
@@ -1049,7 +1280,9 @@
   	W.ambient(0.8); // Set ambient light's force (between 0 and 1)
   	// New shapes
   	addRect('ringWall', { y: 10, z: 5 });
+  	addRect('longRect', { x: 0.2, y: 0.2 });
   	// addRect('rect', { y: 1 });
+
   	// Groups and objects
   	W.group({ n: 'system' });
   	['sun', 'ring', 'p1', 'p2'].forEach((n) => W.group({ n, g: 'system' }));
@@ -1079,7 +1312,6 @@
   		});
   	}
   	// W.billboard({ n: 'flare', x: 0, y: 0, z: 0, size: 96, b: '#ff6633' });
-  	addRect('engine', { x: 0.2, y: 0.2 });
   	{
   		const b = SHIP_COLOR;
   		const g = 'ship';
@@ -1087,12 +1319,15 @@
   		W.cube({ n: 'shipCube', g, y: shipSize * -.5, size: shipSize * .8, b });
   		// W.cube({ n: 'shipCube2', g, y: shipSize * -.5, size: shipSize * .8, b, mode: 2 });
   		const eng = { n: 'shipEngine1', g, ry: 45, rx: 90, x: -shipSize * .6, y: shipSize * -.7, size: shipSize, b: SHIP_COLOR2 };
-  		W.engine(eng);
-  		W.engine({ ...eng, n: 'shipEngine2', x: -eng.x });
+  		W.longRect(eng);
+  		W.longRect({ ...eng, n: 'shipEngine2', x: -eng.x });
   		W.cube({ n: 'shipEngineBack1', g,  x: -shipSize * .6, y: shipSize * -1.15, size: shipSize / 4, b });
   		W.cube({ n: 'shipEngineBack2', g,  x: shipSize * .6, y: shipSize * -1.15, size: shipSize / 4, b });
+  		// W.sphere({ n: 'forcefield', g, size: shipSize * 3, b: '77f0' });
+  		// addAxisCubes(g, 1);
   	}
-  	// W.sphere({ n: 'forcefield', g, size: shipSize * 3, b: '77f0' });
+  	
+  	loop(5, makeKlaxShip);
 
   	const r = 200;
   	const TWO_PI = Math.PI * 2;
@@ -1124,12 +1359,6 @@
   		});
   	});
   	// Create litter / stardust
-  	const randCoord = () => gen.rand(-SPACE_SIZE, SPACE_SIZE);
-  	const randCoords = () => ({
-  		x: randCoord(),
-  		y: randCoord(),
-  		z: randCoord(),
-  	});
   	loop(200, (i) => {
   		W.billboard({
   			n: `litter${i}`,
@@ -1164,7 +1393,7 @@
   }
 
   function thrust(o, amount = 0) {
-  	const { x, y, z } = getDirectionUnit(ship).scale(amount);
+  	const { x, y, z } = getDirectionUnit(o).scale(amount);
   	o.thrust = { x, y, z};
   }
 
@@ -1186,6 +1415,10 @@
   		a.decay = 0;
   		if (b.hp <= 0) b.decay = 0;
   	}
+  	a.aggro += 1;
+  	b.aggro += 1;
+  	a.shieldOpacity += 5;
+  	b.shieldOpacity += 5;
   }
   function collide(e1, e2, dist) {
   	// console.log('collide!', e1.n, e2.n);
@@ -1249,10 +1482,77 @@
   	});
   }
 
+  function cool(o, prop, sec) {
+  	o[prop] = max(o[prop] - sec, 0);
+  }
+
+  function steerRotation(o, steer, amount = 0.01) {
+  	['rx', 'ry', 'rz'].forEach((k) => o[k] = lerp(amount, o[k], steer[k]));
+  }
+
+  function updateShip(k, sec) {
+  	const pos = vec3(k);
+  	const dist = pos.distance(ship);
+  	if (dist > k.sight * 2) k.aggro = max(0, k.aggro -= 0.1);
+  	else if (dist <= k.sight) k.aggro = max(1, k.aggro);
+  	if (!k.aggro) return;
+  	// Aggro actions
+  	const steer = pos.toWAngles(ship);
+  	steerRotation(k, steer, 0.01);
+  	// k.rx = lerp(0.01, k.rx, rx);
+  	// k.ry = lerp(0.01, k.ry, ry);
+  	// k.rz = lerp(0.01, k.rz, rz);
+  	if (k.thrustCooldown) {
+  		cool(k, 'thrustCooldown', sec);
+  	} else {
+  		thrust(k, KLAX_THRUST);
+  		k.thrustCooldown = 5;
+  	}
+  	if (k.fireCooldown === 0) {
+  		spawnPlasma('plasma', k, 'klaxPlasma', ['klaxShip', 'klaxPlasma']);
+  		k.fireCooldown = 1;
+  	} else {
+  		cool(k, 'fireCooldown', sec);
+  	}
+  }
+
+  const PROJECTILE_TYPES = {
+  	plasma: { vScale: 40, tScale: 0.0005, damage: 1, },
+  	photon: { vScale: 15, tScale: 0.0001, damage: 3, },
+  };
+
+  function spawnPlasma(typeKey, from, passType, passthru) {
+  	const { vScale, tScale, damage } = PROJECTILE_TYPES[typeKey];
+  	const t = textures[typeKey];
+  	const { x, y, z } = from;
+  	const u = getDirectionUnit(from);
+  	const v = u.scale(vScale).add(from.vel);
+  	const plasma = {
+  		n: 'plasma' + uid(),
+  		g: 'system',
+  		passType,
+  		x, y, z,
+  		vel: { ...v },
+  		thrust: { ...u.scale(tScale) },
+  		friction: 0,
+  		decay: 5,
+  		damage,
+  		r: 0.5,
+  		passthru,
+  		mass: 0.01,
+  	};
+  	// TODO: Where are the klaxPlasma???
+  	// if (passType === 'klaxPlasma') console.log(plasma);
+  	physicsEnts.push(plasma);
+  	renderables[plasma.n] = plasma;
+  	W.billboard({ ...plasma, size: 1, t });
+  }
+
   function update() {
   	const sec = t / 1000;
 
   	// Handle inputs
+  	if (input.down.p) return;
   	let thrustAmount = input.down.w ? SHIP_THRUST : 0;
   	if (input.down.s) thrustAmount = SHIP_THRUST * -.5;
   	thrust(ship, thrustAmount);
@@ -1270,6 +1570,9 @@
   		input.down[' '] || (click && click.locked)
   	)) {
   		achieve(2);
+  		spawnPlasma((click && click.right) ? 'photon' : 'plasma', ship, 'plasma', ['ship', 'plasma']);
+  		ship.fireCooldown = 0.3;
+  		/*
   		const { x, y, z } = ship;
   		const u = getDirectionUnit(ship);
   		const v = u.scale(click.left ? 40 : 15).add(ship.vel); // scale 26 works well with thrust scale 0.1
@@ -1291,7 +1594,10 @@
   		renderables[plasma.n] = plasma;
   		W.billboard({ ...plasma, size: 1, t: click.left ? textures.plasma : textures.photon });
   		ship.fireCooldown = 0.3;
+  		*/
   	}
+
+  	klaxShips.forEach((k) => updateShip(k, sec));
 
   	// collide(physicsEnts);
   	checkCollisions(physicsEnts);
@@ -1301,16 +1607,12 @@
   		physics(o, sec);
   	});
   	
-  	// console.log('z', Math.round(z / 100), '* 100');
-  	// W.camera({ x: x + camOffset.x, y: y + camOffset.y, z: z + camOffset.z });
-  	// W.move({ n: 'ship', x, y, z, a: t / 2 }, 0);
-  	// W.move({ n: 'ship', x: 0, y: 0, z: 0, a: t / 2 }, 0);
-  	
   	const lockMove = input.getLockMove();
   	// if (lockMove.x || lockMove.y) console.log(lockMove);
   	steer.ry -= lockMove.x / 10;
   	steer.rx -= lockMove.y / 10;
-  	['rx', 'ry', 'rz'].forEach((k) => ship[k] = lerp(0.1, ship[k], steer[k]));
+
+  	steerRotation(ship, steer, 0.05);
   	{
   		const unit = rotateByDegree(vec3(0, camOffset.back, camOffset.up), steer);
   		W.camera({ ...unit, ...addAngles(camOffset, steer), a: 1000 });
@@ -1320,7 +1622,7 @@
   		W.move({ n: 'ship', rx, ry, rz });
   	}
   	// cool down
-  	ship.fireCooldown = Math.max(ship.fireCooldown - sec, 0);
+  	ship.fireCooldown = max(ship.fireCooldown - sec, 0);
 
   	// Decay
   	Object.keys(renderables).forEach((k) => {

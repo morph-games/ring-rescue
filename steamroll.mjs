@@ -1,7 +1,23 @@
-// const { exec } = require('child_process');
+// Based off KilledByAPixel's build.bat file, for example:
+// https://github.com/deathraygames/shikken-13k/blob/main/build.bat
+// He's since improved it, doing what this file is doing:
+// https://github.com/KilledByAPixel/LittleJS/blob/main/examples/js13k/build.js
+
+// TODO:
+// [ ] Remove whitespace from HTML
+// [ ] Handle cssReplaceString
+// [ ] Remove whitespace from CSS
+// [ ] Use something like https://www.npmjs.com/package/css-minify for CSS
+// [ ] Get roadroller working https://github.com/lifthrasiir/roadroller
+
+
 import { exec } from 'child_process';
 import fs from 'node:fs';
 
+// Note: Roadroller can create code that vite (and maybe other servers?) don't like, so the
+// built index.html won't be served by vite. For this reason I have roadroller turned off by
+// default.
+const USE_ROADROLLER = false;
 const MAX_BYTES = 13312;
 const ZIP_NAME = 'game.zip';
 const BUILD_FOLDER = 'build';
@@ -97,11 +113,11 @@ async function compressJavaScript() {
 	await command(`npx google-closure-compiler --js=${bundle_path} --js_output_file=${closure_path} --compilation_level=SIMPLE --language_out=ECMASCRIPT_2019 --warning_level=VERBOSE --jscomp_off=* --assume_function_wrapper`);
 	// more minification with uglify or terser (they both do about the same)
 	await command(`npx uglifyjs -o ${uglify_path} --compress --mangle -- ${closure_path}`);
+	if (!USE_ROADROLLER) return uglify_path;
 	// roadroller compresses the code better then zip
 	await command(`npx roadroller ${uglify_path} -o ${roadrolled_path}`);
 	// TODO: Use roadrolled result instead of uglify
-	// return roadrolled_path;
-	return uglify_path;
+	return roadrolled_path;
 }
 
 async function zip() {
