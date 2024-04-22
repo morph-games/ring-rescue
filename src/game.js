@@ -6,7 +6,8 @@ import { BG_COLOR, FLAME_ON_COLOR, FLAME_OFF_COLOR,
 import { vec3 } from './Vector3.js';
 import { addPyramid, addRect, addSphere } from './w-shapes.js';
 import { makeTextures } from './textures.js';
-import { zzfx } from 'zzfx';
+// import { zzfx } from 'zzfx';
+import { zzfx } from './libs/ZzFX.js';
 import { $id, $html } from './dom.js';
 import { SHIP_SIZE, FAR, SPACE_SIZE } from './scale.js';
 import { getDirectionUnit, loop, clamp, lerp, rotateByDegree, addAngles, uid, rand } from './utils.js';

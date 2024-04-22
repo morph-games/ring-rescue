@@ -1,4 +1,4 @@
-(function (zzfx) {
+(function () {
   'use strict';
 
   // WebGL framework
@@ -646,6 +646,7 @@
 
   const doc = document;
   const $id = (id) => doc.getElementById(id);
+  const $html = (id, h) => $id(id).innerHTML = h;
 
   // Based off LittleJS's Vector2:
   // https://github.com/KilledByAPixel/LittleJS/blob/main/build/littlejs.esm.js#L693
@@ -1344,15 +1345,200 @@
   	W$1.add(name, {vertices, uv, indices});
   }
 
+  /*
+
+  ZzFX - Zuper Zmall Zound Zynth v1.2.1 by Frank Force
+  https://github.com/KilledByAPixel/ZzFX
+
+  ZzFX Features
+
+  - Tiny synth engine with 20 controllable parameters.
+  - Play sounds via code, no need for sound assed files!
+  - Compatible with most modern web browsers.
+  - Small code footprint, the micro version is under 1 kilobyte.
+  - Can produce a huge variety of sound effect types.
+  - Sounds can be played with a short call. zzfx(...[,,,,.1,,,,9])
+  - A small bit of randomness appied to sounds when played.
+  - Use ZZFX.GetNote to get frequencies on a standard diatonic scale.
+  - Sounds can be saved out as wav files for offline playback.
+  - No additional libraries or dependencies are required.
+
+  */
+  /*
+
+    ZzFX MIT License
+    
+    Copyright (c) 2019 - Frank Force
+    
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+    
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+    
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+    
+  */
+
+
+  // play a zzfx sound
+  function zzfx(...parameters) { return ZZFX.play(...parameters) }
+
+  // zzfx object with some extra functionalty
+  const ZZFX =
+  {
+      // master volume scale
+      volume: .3,
+      
+      // sample rate for audio
+      sampleRate: 44100,
+      
+      // create shared audio context
+      x: new AudioContext,
+
+      // play a sound from zzfx paramerters
+      play: function(...parameters)
+      {
+          // build samples and start sound
+          return this.playSamples(this.buildSamples(...parameters));
+      },
+
+      // play an array of samples
+      playSamples: function(...samples)
+      {
+          // create buffer and source
+          const buffer = this.x.createBuffer(samples.length, samples[0].length, this.sampleRate),
+              source = this.x.createBufferSource();
+
+          samples.map((d,i)=> buffer.getChannelData(i).set(d));
+          source.buffer = buffer;
+          source.connect(this.x.destination);
+          source.start();
+          return source;
+      },
+
+      // build an array of samples
+      buildSamples: function
+      (
+          volume = 1, 
+          randomness = .05,
+          frequency = 220,
+          attack = 0,
+          sustain = 0,
+          release = .1,
+          shape = 0,
+          shapeCurve = 1,
+          slide = 0, 
+          deltaSlide = 0, 
+          pitchJump = 0, 
+          pitchJumpTime = 0, 
+          repeatTime = 0, 
+          noise = 0,
+          modulation = 0,
+          bitCrush = 0,
+          delay = 0,
+          sustainVolume = 1,
+          decay = 0,
+          tremolo = 0
+      )
+      {
+          // init parameters
+          let PI2 = Math.PI*2, sampleRate = this.sampleRate, sign = v => v>0?1:-1,
+              startSlide = slide *= 500 * PI2 / sampleRate / sampleRate,
+              startFrequency = frequency *= (1 + randomness*2*Math.random() - randomness) * PI2 / sampleRate,
+              b=[], t=0, tm=0, i=0, j=1, r=0, c=0, s=0, f, length;
+
+          // scale by sample rate
+          attack = attack * sampleRate + 9; // minimum attack to prevent pop
+          decay *= sampleRate;
+          sustain *= sampleRate;
+          release *= sampleRate;
+          delay *= sampleRate;
+          deltaSlide *= 500 * PI2 / sampleRate**3;
+          modulation *= PI2 / sampleRate;
+          pitchJump *= PI2 / sampleRate;
+          pitchJumpTime *= sampleRate;
+          repeatTime = repeatTime * sampleRate | 0;
+
+          // generate waveform
+          for(length = attack + decay + sustain + release + delay | 0;
+              i < length; b[i++] = s)
+          {
+              if (!(++c%(bitCrush*100|0)))                      // bit crush
+              { 
+                  s = shape? shape>1? shape>2? shape>3?         // wave shape
+                      Math.sin((t%PI2)**3) :                    // 4 noise
+                      Math.max(Math.min(Math.tan(t),1),-1):     // 3 tan
+                      1-(2*t/PI2%2+2)%2:                        // 2 saw
+                      1-4*Math.abs(Math.round(t/PI2)-t/PI2):    // 1 triangle
+                      Math.sin(t);                              // 0 sin
+
+                  s = (repeatTime ?
+                          1 - tremolo + tremolo*Math.sin(PI2*i/repeatTime) // tremolo
+                          : 1) *
+                      sign(s)*(Math.abs(s)**shapeCurve) *       // curve 0=square, 2=pointy
+                      volume * this.volume * (                  // envelope
+                      i < attack ? i/attack :                   // attack
+                      i < attack + decay ?                      // decay
+                      1-((i-attack)/decay)*(1-sustainVolume) :  // decay falloff
+                      i < attack  + decay + sustain ?           // sustain
+                      sustainVolume :                           // sustain volume
+                      i < length - delay ?                      // release
+                      (length - i - delay)/release *            // release falloff
+                      sustainVolume :                           // release volume
+                      0);                                       // post release
+
+                  s = delay ? s/2 + (delay > i ? 0 :            // delay
+                      (i<length-delay? 1 : (length-i)/delay) *  // release delay 
+                      b[i-delay|0]/2) : s;                      // sample delay
+              }
+
+              f = (frequency += slide += deltaSlide) *          // frequency
+                  Math.cos(modulation*tm++);                    // modulation
+              t += f - f*noise*(1 - (Math.sin(i)+1)*1e9%2);     // noise
+
+              if (j && ++j > pitchJumpTime)          // pitch jump
+              {
+                  frequency += pitchJump;            // apply pitch jump
+                  startFrequency += pitchJump;       // also apply to start
+                  j = 0;                             // stop pitch jump time
+              }
+
+              if (repeatTime && !(++r % repeatTime)) // repeat
+              {
+                  frequency = startFrequency;        // reset frequency
+                  slide = startSlide;                // reset slide
+                  j = j || 1;                        // reset pitch jump time
+              }
+          }
+
+          return b;
+      },
+      
+      // get frequency of a musical note on a diatonic scale
+      getNote: function(semitoneOffset=0, rootNoteFrequency=440)
+      {
+          return rootNoteFrequency * 2**(semitoneOffset/12);
+      }
+
+  }; // ZZFX
+
   const { min, max, PI, round, abs } = Math;
 
   let sys;
   let textures = {};
   let parts = 0;
   const MAX_PARTS = 5;
-  let kills = 0;
-
-
   const MAX_VEL = 3000;
   const VEL_FRICTION = 1 / 12000;
 
@@ -1360,7 +1546,7 @@
 
   const t = 1000 / 60;
   const camOffset = { back: -SHIP_SIZE * 5, up: SHIP_SIZE * 2, rx: 80, ry: 0, rz: 0 };
-  const cam = { fov: 30, targetFov: 30, lastFov: 30, aspect: 1, near: 0.5, far: FAR };
+  const cam = { fov: 30, targetFov: 30, lastFov: 31, aspect: 1, near: 0.5, far: FAR };
   const STEER_X_MIN = -90 - 90;
   const STEER_X_MAX = -90 + 90;
   const steer = { rx: -90, ry: 0, rz: 0 };
@@ -1371,8 +1557,6 @@
   	'Fire weapons: [Space] or [Click]',
   ].map((t) => ({ t, done: 0 }));
 
-
-
   function achieve(i) {
   	if (achievements[i].done) return;
   	achievements[i].done = 1;
@@ -1380,12 +1564,13 @@
   }
 
   function updateAchievements() {
-  	console.log(sys);
-  	$id('goals').innerHTML = achievements.map(
+  	const kills = sys.klaxShips.reduce((sum, k) => sum + (k.hp > 0 ? 0 : 1), 0);
+  	const html = achievements.map(
   		({ t, done }) => `<li class="${ done ? 'done' : ''}">${t}</li>`,
   	).join('')
   		+ `<li>Klaxonian Ships Destroyed: ${kills} / ${sys.klaxShips.length}</li>`
   		+ `<li>Ring Repair Parts: ${parts} / ${MAX_PARTS}</li>`;
+  	$html('goals', html);
   }
 
   function setupCanvasSize(c) {
@@ -1467,12 +1652,16 @@
 
   function dmg(a, b) {
   	if (a.damage && b.hp) {
+  		const isShipHurt = (b === ship);
   		b.hp -= a.damage;
   		// a.decay = 0;
-  		if (b.hp <= 0) b.decay = 0;
-  		const vol = (b === ship) ? 1.1 : .5;
-  		zzfx.zzfx(...[vol,,416,.02,.21,.52,4,2.14,.2,,,,,1.7,,.9,,.44,.12,.23]);
-  		if (b === ship) flashBorder('canvas');
+  		if (b.hp <= 0) {
+  			b.decay = 0;
+  			if (!isShipHurt) updateAchievements();
+  		}
+  		const vol = isShipHurt ? 1.1 : .5;
+  		zzfx(...[vol,,416,.02,.21,.52,4,2.14,.2,,,,,1.7,,.9,,.44,.12,.23]);
+  		if (isShipHurt) flashBorder('canvas');
   	}
   	a.aggro += 1;
   	b.aggro += 1;
@@ -1594,7 +1783,7 @@
   	const { x, y, z } = from;
   	const u = getDirectionUnit(from);
   	const v = u.scale(vScale).add(from.vel);
-  	zzfx.zzfx(...sound);
+  	zzfx(...sound);
   	const plasma = {
   		n: typeKey + passType + uid(),
   		g: 'system',
@@ -1620,10 +1809,11 @@
   		(v.y > v.x && v.y > v.z) ? 'Y' : 'Z'
   	);
   	const html = '<b>' + [
-  		`Velocity: ${round(v.length())} (${dir}), Pitch: ${round(steer.rx + 90)}, Yaw: ${round(steer.ry) % 360}`,
+  		`Velocity: ${round(v.length())} (${dir})`,
+  		`Pitch: ${round(steer.rx + 90)}, Yaw: ${round(steer.ry) % 360}`,
   		`Hull: ${ship.hp}`,
   	].join('</b><b>') + '</b>';
-  	$id('si').innerHTML = html;
+  	$html('si', html);
   }
 
   function update() {
@@ -1653,7 +1843,7 @@
   	} else {
   		const vol = (boost > 1) ? .15 : .1;
   		const bitCrush = (boost > 1) ? .2 : .8;
-  		zzfx.zzfx(...[vol,,794,.02,.3,.32,,3.96,,.7,,,.16,2.1,,bitCrush,.1,.31,.27]);
+  		zzfx(...[vol,,794,.02,.3,.32,,3.96,,.7,,,.16,2.1,,bitCrush,.1,.31,.27]);
   		achieve(1);
   		const base = { g: 'ship', y: SHIP_SIZE * -1.31, rx: 70, size: .2, t: textures.tf };
   		W$1.billboard({ ...base, n: 'sIgnite1', x: -SHIP_SIZE * 1.1  });
@@ -1700,11 +1890,11 @@
   			)
   		);
   		cam.fov = lerp(0.1, cam.fov, cam.targetFov + speedFov);
-  		abs(cam.fov - cam.lastFov) < 0.01;
+  		const fovChanged = abs(cam.fov - cam.lastFov) > 0.001;
   		cam.lastFov = cam.fov;
-  		// if (fovChanged) {
-  			W$1.camera({ ...unit, ...addAngles(camOffset, steer), a: 1000, ...cam });
-  		// }
+  		let camSettings = { ...unit, ...addAngles(camOffset, steer), a: 100 };
+  		if (fovChanged) camSettings = { ...camSettings, ...cam };
+  		W$1.camera(camSettings);
   	}
   	{
   		const { x, y, z, rx, ry, rz } = ship;
@@ -1750,4 +1940,4 @@
   	input,
   };
 
-})(zzfx);
+})();
