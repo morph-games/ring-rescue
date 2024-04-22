@@ -2,6 +2,7 @@ import { RED } from './colors.js';
 
 const doc = document;
 const $id = (id) => doc.getElementById(id);
+const $html = (id, h) => $id(id).innerHTML = h;
 function flashBorder(id, color = RED, duration = 1500) {
 	const animation = new Animation(
 		(new KeyframeEffect(
@@ -16,4 +17,4 @@ function flashBorder(id, color = RED, duration = 1500) {
 	);
 	animation.play();
 }
-export { doc, $id, flashBorder };
+export { doc, $html, $id, flashBorder };

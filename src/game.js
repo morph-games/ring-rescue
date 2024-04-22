@@ -7,7 +7,7 @@ import { vec3 } from './Vector3.js';
 import { addPyramid, addRect, addSphere } from './w-shapes.js';
 import { makeTextures } from './textures.js';
 import { zzfx } from 'zzfx';
-import { $id } from './dom.js';
+import { $id, $html } from './dom.js';
 import { SHIP_SIZE, FAR, SPACE_SIZE } from './scale.js';
 import { getDirectionUnit, loop, clamp, lerp, rotateByDegree, addAngles, uid, rand } from './utils.js';
 
@@ -17,9 +17,6 @@ let sys;
 let textures = {};
 let parts = 0;
 const MAX_PARTS = 5;
-let kills = 0;
-
-
 const MAX_VEL = 3000;
 const VEL_FRICTION = 1 / 12000;
 
@@ -27,7 +24,7 @@ const sun = { rx: 0, ry: 0, ry: 0 };
 
 const t = 1000 / 60;
 const camOffset = { back: -SHIP_SIZE * 5, up: SHIP_SIZE * 2, rx: 80, ry: 0, rz: 0 };
-const cam = { fov: 30, targetFov: 30, lastFov: 30, aspect: 1, near: 0.5, far: FAR };
+const cam = { fov: 30, targetFov: 30, lastFov: 31, aspect: 1, near: 0.5, far: FAR };
 let rotation = 0;
 const STEER_X_MIN = -90 - 90;
 const STEER_X_MAX = -90 + 90;
@@ -39,8 +36,6 @@ const achievements = [
 	'Fire weapons: [Space] or [Click]',
 ].map((t) => ({ t, done: 0 }));
 
-
-
 function achieve(i) {
 	if (achievements[i].done) return;
 	achievements[i].done = 1;
@@ -48,12 +43,13 @@ function achieve(i) {
 }
 
 function updateAchievements() {
-	console.log(sys);
-	$id('goals').innerHTML = achievements.map(
+	const kills = sys.klaxShips.reduce((sum, k) => sum + (k.hp > 0 ? 0 : 1), 0);
+	const html = achievements.map(
 		({ t, done }) => `<li class="${ done ? 'done' : ''}">${t}</li>`,
 	).join('')
 		+ `<li>Klaxonian Ships Destroyed: ${kills} / ${sys.klaxShips.length}</li>`
 		+ `<li>Ring Repair Parts: ${parts} / ${MAX_PARTS}</li>`;
+	$html('goals', html);
 }
 
 function setupCanvasSize(c) {
@@ -135,12 +131,16 @@ function physics(o, sec) {
 
 function dmg(a, b) {
 	if (a.damage && b.hp) {
+		const isShipHurt = (b === ship)
 		b.hp -= a.damage;
 		// a.decay = 0;
-		if (b.hp <= 0) b.decay = 0;
-		const vol = (b === ship) ? 1.1 : .5;
+		if (b.hp <= 0) {
+			b.decay = 0;
+			if (!isShipHurt) updateAchievements();
+		}
+		const vol = isShipHurt ? 1.1 : .5;
 		zzfx(...[vol,,416,.02,.21,.52,4,2.14,.2,,,,,1.7,,.9,,.44,.12,.23]);
-		if (b === ship) flashBorder('canvas');
+		if (isShipHurt) flashBorder('canvas');
 	}
 	a.aggro += 1;
 	b.aggro += 1;
@@ -289,10 +289,11 @@ function updateUI() {
 		(v.y > v.x && v.y > v.z) ? 'Y' : 'Z'
 	);
 	const html = '<b>' + [
-		`Velocity: ${round(v.length())} (${dir}), Pitch: ${round(steer.rx + 90)}, Yaw: ${round(steer.ry) % 360}`,
+		`Velocity: ${round(v.length())} (${dir})`,
+		`Pitch: ${round(steer.rx + 90)}, Yaw: ${round(steer.ry) % 360}`,
 		`Hull: ${ship.hp}`,
 	].join('</b><b>') + '</b>';
-	$id('si').innerHTML = html;
+	$html('si', html);
 }
 
 function update() {
@@ -371,11 +372,11 @@ function update() {
 			)
 		);
 		cam.fov = lerp(0.1, cam.fov, cam.targetFov + speedFov);
-		const fovChanged = abs(cam.fov - cam.lastFov) < 0.01;
+		const fovChanged = abs(cam.fov - cam.lastFov) > 0.001;
 		cam.lastFov = cam.fov;
-		// if (fovChanged) {
-			W.camera({ ...unit, ...addAngles(camOffset, steer), a: 1000, ...cam });
-		// }
+		let camSettings = { ...unit, ...addAngles(camOffset, steer), a: 100 };
+		if (fovChanged) camSettings = { ...camSettings, ...cam };
+		W.camera(camSettings);
 	}
 	{
 		const { x, y, z, rx, ry, rz } = ship;
