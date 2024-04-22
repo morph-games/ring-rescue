@@ -20,16 +20,26 @@
 			#canvas {
 				width: 100vw;
 				height: calc(min(100vh, 100vmin));
-				box-sizing: border-box;
 				margin: 0 auto;
 				border: solid 1vmin transparent;
 			}
+			b, #canvas {
+				display: block;
+				box-sizing: border-box;
+				text-align: left;;
+			}
 			/* canvas { image-rendering: pixelated; } */
-			#goals {
+			#goals, #si {
 				position: absolute;
 				top: 0;
-				right: 0;
+				right: 1.5vmin;
 				list-style-type: square;
+				text-align: left;
+			}
+			#si {
+				right: unset;
+				left: 1.5vmin;
+				color: #8bc7bf;
 			}
 			.done {
 				text-decoration: line-through;
@@ -39,6 +49,7 @@
 	</head>
 	<body>
 		<canvas id="canvas"></canvas>
+		<p id="si">Hull: 5<br/>Vel: xyz</p>
 		<p id="goals">[Tab] = 🖱️ Mouselock steering</p>
 		<i id="loaded" style="display: none"></i>
 	</body>

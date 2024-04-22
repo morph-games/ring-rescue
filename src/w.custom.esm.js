@@ -151,7 +151,7 @@ W = {
     if(state.fov){  
       const {
         near = 1,
-        far = 100000,
+        far = 1000,
         fov,
         aspect = canvas.width / canvas.height  // Aspect ratio is w/h
       } = state; // near can't be 0
@@ -160,7 +160,7 @@ W = {
       ); 
       const nf = 1 / (near - far);
       W.projection = new DOMMatrix([
-        f / aspect, 0, 0, 0, 
+        f / aspect, 0, 0, 0,
         0, f, 0, 0, 
         0, 0, (far + near) * nf, -1,
         0, 0, 2 * near * far * nf, 0
@@ -552,100 +552,5 @@ W.add("plane", {
   ],
 });
 W.add("billboard", W.models.plane);
-
-// Cube
-//
-//    v6----- v5
-//   /|      /|
-//  v1------v0|
-//  | |  x  | |
-//  | |v7---|-|v4
-//  |/      |/
-//  v2------v3
-
-W.add("cube", {
-  vertices: [
-    .5, .5, .5,  -.5, .5, .5,  -.5,-.5, .5, // front
-    .5, .5, .5,  -.5,-.5, .5,   .5,-.5, .5,
-    .5, .5,-.5,   .5, .5, .5,   .5,-.5, .5, // right
-    .5, .5,-.5,   .5,-.5, .5,   .5,-.5,-.5,
-    .5, .5,-.5,  -.5, .5,-.5,  -.5, .5, .5, // up
-    .5, .5,-.5,  -.5, .5, .5,   .5, .5, .5,
-   -.5, .5, .5,  -.5, .5,-.5,  -.5,-.5,-.5, // left
-   -.5, .5, .5,  -.5,-.5,-.5,  -.5,-.5, .5,
-   -.5, .5,-.5,   .5, .5,-.5,   .5,-.5,-.5, // back
-   -.5, .5,-.5,   .5,-.5,-.5,  -.5,-.5,-.5,
-    .5,-.5, .5,  -.5,-.5, .5,  -.5,-.5,-.5, // down
-    .5,-.5, .5,  -.5,-.5,-.5,   .5,-.5,-.5
-  ],
-  uv: [
-    1, 1,   0, 1,   0, 0, // front
-    1, 1,   0, 0,   1, 0,            
-    1, 1,   0, 1,   0, 0, // right
-    1, 1,   0, 0,   1, 0, 
-    1, 1,   0, 1,   0, 0, // up
-    1, 1,   0, 0,   1, 0,
-    1, 1,   0, 1,   0, 0, // left
-    1, 1,   0, 0,   1, 0,
-    1, 1,   0, 1,   0, 0, // back
-    1, 1,   0, 0,   1, 0,
-    1, 1,   0, 1,   0, 0, // down
-    1, 1,   0, 0,   1, 0
-  ]
-});
-W.cube = settings => W.setState(settings, 'cube');
-
-// Pyramid
-//
-//      ^
-//     /\\
-//    // \ \
-//   /+-x-\-+
-//  //     \/
-//  +------+
-
-W.add("pyramid", {
-  vertices: [
-    -.5,-.5, .5,   .5,-.5, .5,    0, .5,  0,  // Front
-     .5,-.5, .5,   .5,-.5,-.5,    0, .5,  0,  // Right
-     .5,-.5,-.5,  -.5,-.5,-.5,    0, .5,  0,  // Back
-    -.5,-.5,-.5,  -.5,-.5, .5,    0, .5,  0,  // Left
-     .5,-.5, .5,  -.5,-.5, .5,  -.5,-.5,-.5, // down
-     .5,-.5, .5,  -.5,-.5,-.5,   .5,-.5,-.5
-  ],
-  uv: [
-    0, 0,   1, 0,  .5, 1,  // Front
-    0, 0,   1, 0,  .5, 1,  // Right
-    0, 0,   1, 0,  .5, 1,  // Back
-    0, 0,   1, 0,  .5, 1,  // Left
-    1, 1,   0, 1,   0, 0,  // down
-    1, 1,   0, 0,   1, 0
-  ]
-});
-
-// Sphere
-//
-//          =   =
-//       =         =
-//      =           =
-//     =      x      =
-//      =           =
-//       =         =
-//          =   =
-
-((i, ai, j, aj, p1, p2, vertices = [], indices = [], uv = [], precision = 20) => {
-  for(j = 0; j <= precision; j++){
-    aj = j * Math.PI / precision;
-    for(i = 0; i <= precision; i++){
-      ai = i * 2 * Math.PI / precision;
-      vertices.push(+(Math.sin(ai) * Math.sin(aj)/2).toFixed(6), +(Math.cos(aj)/2).toFixed(6), +(Math.cos(ai) * Math.sin(aj)/2).toFixed(6));
-      uv.push((Math.sin((i/precision))) * 3.5, -Math.sin(j/precision))
-      if(i < precision && j < precision){
-        indices.push(p1 = j * (precision + 1) + i, p2 = p1 + (precision + 1), (p1 + 1), (p1 + 1), p2, (p2 + 1));
-      }
-    }
-  }
-  W.add("sphere", {vertices, uv, indices});
-})();
 
 export default W;

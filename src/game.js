@@ -1,132 +1,45 @@
 import W from './w.custom.esm.js';
 import input from './input.js';
-import { vec3, rad2deg, deg2rad } from './Vector3.js';
-import RandomGenerator from './RandomGenerator.js';
-import { addRect } from './w-tools.js';
-// const { W } = window;
+import { makeStarSystem } from './star-system.js';
+import { BG_COLOR, FLAME_ON_COLOR, FLAME_OFF_COLOR,
+} from './colors.js';
+import { vec3 } from './Vector3.js';
+import { addPyramid, addRect, addSphere } from './w-shapes.js';
+import { makeTextures } from './textures.js';
+import { zzfx } from 'zzfx';
+import { $id } from './dom.js';
+import { SHIP_SIZE, FAR, SPACE_SIZE } from './scale.js';
+import { getDirectionUnit, loop, clamp, lerp, rotateByDegree, addAngles, uid, rand } from './utils.js';
 
-const { min, max, PI } = Math;
+const { min, max, PI, round, abs } = Math;
 
-// Note that max distance is 1000
-// So world can be -500 --> 500 in any dimensions
-// Solar system is 30 trillion km diameter
-// so if the scale matches, then each 1.0 unit = 30 billion km
+let sys;
+let textures = {};
+let parts = 0;
+const MAX_PARTS = 5;
+let kills = 0;
+
+
 const MAX_VEL = 3000;
-const FAR = 25000;
-const SPACE_SIZE = FAR / 2; // The "radius" of the world
-const RING_RADIUS = 2000;
-const skyboxDist = SPACE_SIZE;
-const TWO_PI = PI * 2;
 const VEL_FRICTION = 1 / 12000;
-const SHIP_THRUST = 0.02;
-const KLAX_THRUST = 0.006;
-const KLAX_COUNT = 5;
 
-const doc = document;
-
-const shipSize = 0.3;
 const sun = { rx: 0, ry: 0, ry: 0 };
-const ship = {
-	x: 0, y: 0, z: SPACE_SIZE - 10,
-	rx: -90, ry: 0, rz: 0,
-	vel: { x: 0, y: 0, z: 0 },
-	thrust: { x: 0, y: 0, z: 0 },
-	fireCooldown: 0,
-	r: 2, // collision radius
-	passType: 'ship',
-	passthru: ['plasma'],
-	shieldOpacity: 0,
-	sight: 700,
-	aggro: 0,
-	thrustCooldown: 0,
-	hp: 5,
-	facing: { x: 0, y: 1, z: 0 },
-};
-const klaxShip = {
-	...structuredClone(ship),
-	passType: 'klaxShip',
-	passthru: ['klaxPlasma'],
-	facing: { x: 1, y: 0, z: 0 },
-};
-const klaxShips = [];
-const t = 1000 / 60;
-const camOffset = { back: -shipSize * 5, up: shipSize * 1.7, rx: 80, ry: 0, rz: 0 };
-const cam = { fov: 30, aspect: 1, far: FAR };
-let rotation = 0;
-const steer = { rx: -90, ry: 0, rz: 0 };
-const physicsEnts = [ship];
-const renderables = {};
-const seed = 1234;
-const gen = new RandomGenerator(seed);
 
-// + https://lospec.com/palette-list/moondrom
-const BG_COLOR = '2a242b';
-const SHIP_COLOR = '5796a1';
-const SHIP_COLOR2 = '8bc7bf';
-const RING_COLOR = '5796a1';
-const RING_COLOR2 = '478691';
-const P1_COLOR = '775b5b';
-const P2_COLOR = 'b0455a';
-const SUN_COLOR = '#de8b6f'; // 'ff6633'
-const STAR_COLOR = '#ebd694';
-const SPACE_COLOR = '0000';
-const PLASMA_COLOR1 = '#de8b6f';
-const PLASMA_COLOR2 = '#b0455a';
-const PLASMA_COLOR3 = '#90d59c';
-const KSHIP_COLOR1 = '471b6e';
-const KSHIP_COLOR2 = '372b4e';
-const KSHIP_COLOR3 = '90d59c';
-// https://lospec.com/palette-list/arjibi8
-// 8bc7bf - light cyan
-// 5796a1 - dark cyan
-// 524bb3 - blue
-// 471b6e - darkest (purple)
-// 702782 - purple light
-// b0455a - red
-// de8b6f - orange
-// ebd694 - yellow
-// https://lospec.com/palette-list/moondrom
-// 2a242b - dark gray
-// 90d59c - green
-const textures = {};
+const t = 1000 / 60;
+const camOffset = { back: -SHIP_SIZE * 5, up: SHIP_SIZE * 2, rx: 80, ry: 0, rz: 0 };
+const cam = { fov: 30, targetFov: 30, lastFov: 30, aspect: 1, near: 0.5, far: FAR };
+let rotation = 0;
+const STEER_X_MIN = -90 - 90;
+const STEER_X_MAX = -90 + 90;
+const steer = { rx: -90, ry: 0, rz: 0 };
+
 const achievements = [
 	'Check steering: [Tab] to toggle mouse-lock',
 	'Thrusters: [W]',
 	'Fire weapons: [Space] or [Click]',
 ].map((t) => ({ t, done: 0 }));
 
-function uid() { return String(Number(new Date())); }
-// Some functions here from LittleJS utilities
-function clamp(value, min=0, max=1) { return value < min ? min : value > max ? max : value; }
-function lerp(percent, valueA, valueB) { return valueA + clamp(percent) * (valueB-valueA); }
-function rand(valueA=1, valueB=0) { return valueB + Math.random() * (valueA-valueB); }
 
-const randCoord = (n = SPACE_SIZE) => gen.rand(-n, n);
-const randCoords = (n) => ({
-	x: randCoord(n),
-	y: randCoord(n),
-	z: randCoord(n),
-});
-
-function rotateByDegree(v, o) {
-	return v.rotate(deg2rad(o.rx), deg2rad(o.ry), deg2rad(o.rz));
-}
-function getDirectionUnit(o) {
-	const { facing } = o;
-	return rotateByDegree(vec3(facing), o);
-}
-function addAngles(a, b) {
-	let { rx, ry, rz } = a;
-	rx += b.rx;
-	ry += b.ry;
-	rz += b.rz;
-	return { rx, ry, rz };
-}
-
-function loop(n, fn) {
-	for (let i = 0; i < n; i += 1) { fn(i, n); }
-}
-const $id = (id) => doc.getElementById(id);
 
 function achieve(i) {
 	if (achievements[i].done) return;
@@ -135,104 +48,12 @@ function achieve(i) {
 }
 
 function updateAchievements() {
+	console.log(sys);
 	$id('goals').innerHTML = achievements.map(
 		({ t, done }) => `<li class="${ done ? 'done' : ''}">${t}</li>`,
-	).join('');
-}
-
-function getXYCoordinatesFromPolar(angle, r) {
-	const x = r * Math.cos(angle);
-	const y = r * Math.sin(angle);
-	return { x, y };
-}
-
-function makeCanvas(id, size) {
-	const existingElt = $id(id);
-	const elt = existingElt || doc.createElement('canvas');
-	elt.id = id;
-	elt.width = elt.height = size;
-	if (!existingElt) $id('loaded').appendChild(elt);
-	return [elt, elt.getContext('2d'), size / 2];
-}
-
-function makeStarFieldCanvas(id) {
-	const size = 800;
-	const [cElt, c] = makeCanvas(id, size);
-	loop(1400, () => {
-		c.rect(gen.int(0, size), gen.int(0, size), 1, 1);
-	});
-	c.fillStyle = STAR_COLOR;
-	c.fill();
-	return cElt;
-}
-
-function makeStarCanvas(points = 4, color = '#f00', id, depth = .4, size = 600) {
-	const [cElt, c, h] = makeCanvas(id, size);
-	c.clearRect(0, 0, size, size);
-	c.beginPath();
-	const a = TWO_PI / points;
-	const line = (a, r) => {
-		const { x, y } = getXYCoordinatesFromPolar(a, r);
-		c.lineTo(h + x, h + y);
-	};
-	loop(points, (i) => {
-		line(a * i, h);
-		line(a * i + (a / 2), h * depth);
-	});
-	c.fillStyle = color;
-	c.fill();
-	return cElt;
-}
-
-function addAxisCubes(g, size) {
-	W.cube({ n: g + 'axisX', g, x: size + 1, size, b: 'a008' });
-	W.cube({ n: g + 'axisY', g, y: size + 1, size, b: '0a08' });
-	W.cube({ n: g + 'axisZ', g, z: size + 1, size, b: '00a8' });
-}
-
-function makeKlaxShip(i) {
-	const n = `k${i}`;
-	const b = KSHIP_COLOR1;
-	const pos = randCoords(RING_RADIUS);
-	// const pos = { x: 0, y: 0, z: 100 };
-
-	// const { rx, ry, rz } = vec3().toWAngles(vec3(ship));
-	const size = 5;
-	const coreSize = size / 2;
-	const strutSize = size / 2.5;
-	const k = {
-		n,
-		...structuredClone(klaxShip),
-		...pos, size: 5, r: 10,
-		// rx, ry, rz,
-	};
-	// console.log(k);
-	W.group({ n, g: 'system', ...pos,
-		// rx, ry, rz,
-	});
-	const g = n;
-	const core = { g, size: coreSize, x: -1.5, b: KSHIP_COLOR2 };
-	const strut = { g, size: strutSize, b: KSHIP_COLOR1 };
-	W.cube({ ...core, n: n + 'c', rx: 45, b: KSHIP_COLOR1 });
-	loop(4, (i) => {
-		W.cube({ ...core, n: `${n}cc${i}`, x: -2 - i, size: 2.5 - (0.5 * i),
-			// rx: 45 + (i * 45),
-		});
-		// W.cube({ ...core, n: `${n}c${i}`, x: -2 - i, y: rand(-1, 1), z: rand(-1, 1), size: rand(2, 3),
-		// 	rx: rand(-10, 10), ry: rand(-10, 10), b: KSHIP_COLOR2 });
-	});
-	W.pyramid({ n: n + 'nose', rz: -90, g, size: 1.5, b: KSHIP_COLOR3 });
-	
-	W.longRect({ ...strut, n: n + 'wing1', y: 2, rx: 90, ry: 45, rz: -45, });
-	W.longRect({ ...strut, n: n + 'wing2', y: 2, x: 1.5, rx: 90, ry: 45, rz: 45, b });
-	W.longRect({ ...strut, n: n + 'wing3', y: -2, rx: 90, ry: 45, rz: 45, });
-	W.longRect({ ...strut, n: n + 'wing4', y: -2, x: 1.5, rx: 90, ry: 45, rz: -45, b });
-	W.sphere({ n: n + 'shield', g, size: 10, b: 'ebd69404' });
-	// addAxisCubes(g, 4);
-	
-	physicsEnts.push(k);
-	renderables[k.n] = k;
-	klaxShips.push(k);
+	).join('')
+		+ `<li>Klaxonian Ships Destroyed: ${kills} / ${sys.klaxShips.length}</li>`
+		+ `<li>Ring Repair Parts: ${parts} / ${MAX_PARTS}</li>`;
 }
 
 function setupCanvasSize(c) {
@@ -266,11 +87,7 @@ function setup() {
 			// w: shipThrust(1)
 		}
 	});
-	textures.tf = makeStarCanvas(9, STAR_COLOR, 'tf', .3);
-	textures.plasma = makeStarCanvas(11, PLASMA_COLOR1, 'plasma', .2);
-	textures.photon = makeStarCanvas(13, PLASMA_COLOR2, 'photon', .5);
-	textures.klaxPlasma = makeStarCanvas(15, PLASMA_COLOR3, 'klaxPlasma', .3);
-	 
+	textures = makeTextures();
 
 	c.addEventListener('click', () => {
 		input.lock();
@@ -278,118 +95,23 @@ function setup() {
 	W.reset(c);
 	W.clearColor(BG_COLOR);
 	// W.camera({ z: 5000 });
-	W.light({ x: -1, y: -1.2, z: 0 }); // Set light direction: vector direction x, y, z
+	W.light({ x: -1, y: -1.2, z: .2 }); // Set light direction: vector direction x, y, z
 	W.ambient(0.8); // Set ambient light's force (between 0 and 1)
 	// New shapes
-	addRect('ringWall', { y: 10, z: 5 });
+	addRect('plank', { y: 10, z: 5, x: .3 });
 	addRect('longRect', { x: 0.2, y: 0.2 });
+	addRect('longerRect', { x: 0.2, y: 0.2, z: .7 });
+	addRect('cube');
+	addPyramid('pyramid');
+	addPyramid('longPyramid', { y: .8 });
+	addSphere('sphere');
+	addSphere('ufo', { y: 3, precision: 10 });
 	// addRect('rect', { y: 1 });
 
-	// Groups and objects
-	W.group({ n: 'system' });
-	['sun', 'ring', 'p1', 'p2', 'p3'].forEach((n) => W.group({ n, g: 'system' }));
-	['ship', 'skybox'].forEach((n) => W.group({ n })); // Are not in a group
-
-	const sunFlare = makeStarCanvas(16, `${SUN_COLOR}88`, 'sun', .7);
-
-	W.sphere({ n: 'outerSun', g: 'sun', size: 500, b: `${SUN_COLOR}88` });
-	W.sphere({ n: 'innerSun', g: 'sun', size: 480, b: SUN_COLOR });
-	W.billboard({ n: 'sunFlare', g: 'sun', size: 640, b: SUN_COLOR, t: sunFlare });
-	W.sphere({ n: 'planet1', g: 'p1', ...getXYCoordinatesFromPolar(0.5, 3000), size: 200, b: P1_COLOR });
-	W.sphere({ n: 'planet2', g: 'p2', ...getXYCoordinatesFromPolar(0.7, 4000), size: 120, b: P2_COLOR });
-	W.sphere({ n: 'planet3', g: 'p3', ...getXYCoordinatesFromPolar(0.7, 7000), size: 80, b: P1_COLOR });
-
-	{
-		const b = SPACE_COLOR;
-		const size = skyboxDist * 2;
-		const t = makeStarFieldCanvas('sf');
-		[
-			{ z: -skyboxDist, b, t },
-			{ y: -skyboxDist, rx: -90, b, t },
-			{ y: skyboxDist, rx: 90, b, t },
-			{ x: -skyboxDist, ry: 90, b, t },
-			{ x: skyboxDist, ry: -90, b, t },
-			{ z: skyboxDist, rx: 180, b, t },
-		].forEach((settings, i) => {
-			W.plane({ b: '000', ...settings, n: `skybox${i}`, g: 'skybox', size });
-		});
-	}
-	// W.billboard({ n: 'flare', x: 0, y: 0, z: 0, size: 96, b: '#ff6633' });
-	{
-		const b = SHIP_COLOR;
-		const g = 'ship';
-		W.pyramid({ n: 'shipBase', g, size: shipSize, b });
-		W.cube({ n: 'shipCube', g, y: shipSize * -.5, size: shipSize * .8, b });
-		// W.cube({ n: 'shipCube2', g, y: shipSize * -.5, size: shipSize * .8, b, mode: 2 });
-		const eng = { n: 'shipEngine1', g, ry: 45, rx: 90, x: -shipSize * .6, y: shipSize * -.7, size: shipSize, b: SHIP_COLOR2 };
-		W.longRect(eng);
-		W.longRect({ ...eng, n: 'shipEngine2', x: -eng.x });
-		W.cube({ n: 'shipEngineBack1', g,  x: -shipSize * .6, y: shipSize * -1.15, size: shipSize / 4, b });
-		W.cube({ n: 'shipEngineBack2', g,  x: shipSize * .6, y: shipSize * -1.15, size: shipSize / 4, b });
-		// W.sphere({ n: 'forcefield', g, size: shipSize * 3, b: '77f0' });
-		// addAxisCubes(g, 1);
-	}
-	
-	loop(KLAX_COUNT, makeKlaxShip);
-
-	const TWO_PI = Math.PI * 2;
-	loop(32, (i, n) => {
-		const angle = i === 0 ? 0 : (TWO_PI * i) / n;
-		const deg = rad2deg(angle);
-		// console.log(i, angle, x, y);
-		let { x, y } = getXYCoordinatesFromPolar(angle, RING_RADIUS);
-		const g = `r${i}`;
-		W.group({ n: g, g: 'ring' });
-		W.ringWall({
-			n: `ring${i}`,
-			g,
-			x,
-			y,
-			rz: deg,
-			size: 20,
-			b: RING_COLOR,
-		});
-		// y += 10;
-		W.cube({
-			n: `ringBuilding${i}`,
-			g,
-			x,
-			y,
-			rz: deg,
-			size: 50,
-			b: RING_COLOR2,
-		});
-	});
-	// Create litter / stardust
-	loop(300, (i) => {
-		W.billboard({
-			n: `litter${i}`,
-			g: 'system',
-			...randCoords(RING_RADIUS * 2),
-			size: 1,
-			b: '555e',
-		});
-	});
-	// Create physical crates
-	loop(30, (i) => {
-		const crate = {
-			n: `crate${i}`,
-			passType: 'crate',
-			passthru: ['crate'],
-			g: 'system',
-			...randCoords(RING_RADIUS * 1.5),
-			vel: { ...vec3() },
-			size: 3,
-			r: 2, // collision radius
-			b: 'de8b6f',
-			rx: rand(0, 359),
-			ry: rand(0, 359),
-			rz: rand(0, 359),
-			hp: 3,
-		};
-		physicsEnts.push(crate);
-		renderables[crate.n] = crate;
-		W.cube(crate);
+	sys = makeStarSystem(W, SPACE_SIZE);
+	['renderables', 'ship', 'physicsEnts', 'klaxShips'].forEach((k) => {
+		window[k] = sys[k];
+		g[k] = sys[k];
 	});
 	updateAchievements();
 }
@@ -414,8 +136,11 @@ function physics(o, sec) {
 function dmg(a, b) {
 	if (a.damage && b.hp) {
 		b.hp -= a.damage;
-		a.decay = 0;
+		// a.decay = 0;
 		if (b.hp <= 0) b.decay = 0;
+		const vol = (b === ship) ? 1.1 : .5;
+		zzfx(...[vol,,416,.02,.21,.52,4,2.14,.2,,,,,1.7,,.9,,.44,.12,.23]);
+		if (b === ship) flashBorder('canvas');
 	}
 	a.aggro += 1;
 	b.aggro += 1;
@@ -511,8 +236,8 @@ function updateShip(k, sec) {
 	if (k.thrustCooldown) {
 		cool(k, 'thrustCooldown', sec);
 	} else {
-		thrust(k, KLAX_THRUST);
-		k.thrustCooldown = rand(1, 5);
+		thrust(k, k.thrustForce);
+		k.thrustCooldown = rand(.5, 3);
 	}
 	if (k.fireCooldown) {
 		cool(k, 'fireCooldown', sec);
@@ -523,17 +248,22 @@ function updateShip(k, sec) {
 }
 
 const PROJECTILE_TYPES = {
-	plasma: { vScale: 25, tScale: 0.0005, damage: 1, size: 1 },
-	photon: { vScale: 15, tScale: 0.0001, damage: 3, size: 1 },
-	klaxPlasma: { vScale: 25, tScale: 0.0005, damage: 1, size: 10 },
+	plasma: { vScale: 25, tScale: 0.0005, damage: 1, size: 1,
+		sound: [,.1,295,.02,.01,.08,,1.72,-3.5,.2,,,,.2,,,.08,.62,.09] },
+	photon: { vScale: 15, tScale: 0.0001, damage: 3, size: 1,
+		sound: [2.06,.35,212,.05,.08,.01,,1.66,-4.8,.2,50,,,1.7,,.5,.28,.65,.02] },
+	klaxPlasma: { vScale: 25, tScale: 0.0005, damage: 1, size: 10,
+		sound: [.3,.4,241,.04,.03,.08,,.46,-7.7,,,,,,,.2,,.53,.05,.2],
+	},
 };
 
 function spawnPlasma(typeKey, from, passType, passthru) {
-	const { vScale, tScale, damage, size } = PROJECTILE_TYPES[typeKey];
+	const { vScale, tScale, damage, size, sound } = PROJECTILE_TYPES[typeKey];
 	const t = textures[typeKey];
 	const { x, y, z } = from;
 	const u = getDirectionUnit(from);
 	const v = u.scale(vScale).add(from.vel);
+	zzfx(...sound);
 	const plasma = {
 		n: typeKey + passType + uid(),
 		g: 'system',
@@ -544,7 +274,7 @@ function spawnPlasma(typeKey, from, passType, passthru) {
 		friction: 0,
 		decay: 5,
 		damage,
-		r: 0.5,
+		r: 5,
 		passthru,
 		mass: 0.01,
 	};
@@ -553,27 +283,51 @@ function spawnPlasma(typeKey, from, passType, passthru) {
 	W.billboard({ ...plasma, size, t });
 }
 
+function updateUI() {
+	const v = vec3(ship.vel);
+	const dir = (v.x > v.y && v.x > v.z) ? 'X' : (
+		(v.y > v.x && v.y > v.z) ? 'Y' : 'Z'
+	);
+	const html = '<b>' + [
+		`Velocity: ${round(v.length())} (${dir}), Pitch: ${round(steer.rx + 90)}, Yaw: ${round(steer.ry) % 360}`,
+		`Hull: ${ship.hp}`,
+	].join('</b><b>') + '</b>';
+	$id('si').innerHTML = html;
+}
+
 function update() {
 	const sec = t / 1000;
 	rotation = (rotation + sec) % 360;
 
 	// Handle inputs and update player ship
 	const { down } = input;
-	if (down[']']) cam.fov += .5;
-	if (down['[']) cam.fov -= .5;
+	if (down[']']) cam.targetFov += .5;
+	if (down['[']) cam.targetFov -= .5;
 	if (down.p) return;
 	const boost = down.Shift ? 2 : 1;
-	let thrustAmount = down.w || down.W ? SHIP_THRUST * boost : 0;
-	if (down.s) thrustAmount = SHIP_THRUST * boost * -.5;
+	let thrustAmount = 0; 
+	if (down.s || down.S) {
+		thrustAmount = ship.thrustForce * boost * -.5;
+		down.w = false;
+		down.W = false;
+	} else if (down.w || down.W) {
+		thrustAmount = ship.thrustForce * boost;
+	}
 	thrust(ship, thrustAmount);
+	const flameColor = (thrustAmount > 0) ? FLAME_ON_COLOR : FLAME_OFF_COLOR;
+	W.move({ n: 'sFlame1', b: flameColor });
+	W.move({ n: 'sFlame2', b: flameColor });
 	if (thrustAmount === 0) {
-		W.delete('shipEngineIgnite1');
-		W.delete('shipEngineIgnite2');
+		W.delete('sIgnite1');
+		W.delete('sIgnite2');
 	} else {
+		const vol = (boost > 1) ? .15 : .1;
+		const bitCrush = (boost > 1) ? .2 : .8;
+		zzfx(...[vol,,794,.02,.3,.32,,3.96,,.7,,,.16,2.1,,bitCrush,.1,.31,.27]);
 		achieve(1);
-		const base = { g: 'ship', y: shipSize * -1.31, rx: 90, size: .2, t: textures.tf };
-		W.billboard({ ...base, n: 'shipEngineIgnite1', x: -shipSize * .6  });
-		W.billboard({ ...base, n: 'shipEngineIgnite2', x: shipSize * .6 });
+		const base = { g: 'ship', y: SHIP_SIZE * -1.31, rx: 70, size: .2, t: textures.tf };
+		W.billboard({ ...base, n: 'sIgnite1', x: -SHIP_SIZE * 1.1  });
+		W.billboard({ ...base, n: 'sIgnite2', x: SHIP_SIZE * 1.1 });
 	}
 	const click = input.getClick();
 	if (ship.fireCooldown === 0 && (
@@ -598,16 +352,30 @@ function update() {
 	});
 	
 	// Do steering
-	const lockMove = input.getLockMove();
-	// if (lockMove.x || lockMove.y) console.log(lockMove);
-	steer.ry -= lockMove.x / 10;
-	steer.rx -= lockMove.y / 10;
-	steerRotation(ship, steer, 0.05);
+	{
+		const { ry, rx } = steer;
+		const lockMove = input.getLockMove();
+		// if (lockMove.x || lockMove.y) console.log(lockMove);
+		steer.ry -= lockMove.x / 10;
+		steer.rx = min(max(steer.rx - lockMove.y / 10, STEER_X_MIN), STEER_X_MAX);
+		// steer.rz += down.a ? -2 : (down.d ? 2 : 0);
+		// console.log({ ...steer });
+		steerRotation(ship, steer, 0.05);
+	}
 	{
 		const unit = rotateByDegree(vec3(0, camOffset.back, camOffset.up), steer);
 		// TODO: only add cam if fov or aspect ratio has changed
-		const fov = cam.fov + (thrustAmount && (boost > 1) ? 2 : 0);
-		W.camera({ ...unit, ...addAngles(camOffset, steer), a: 1000, ...cam, fov });
+		const speedFov = (!thrustAmount) ? 0 : (
+			thrustAmount < 0 ? -2 : (
+				(boost > 1) ? 10 : 1
+			)
+		);
+		cam.fov = lerp(0.1, cam.fov, cam.targetFov + speedFov);
+		const fovChanged = abs(cam.fov - cam.lastFov) < 0.01;
+		cam.lastFov = cam.fov;
+		// if (fovChanged) {
+			W.camera({ ...unit, ...addAngles(camOffset, steer), a: 1000, ...cam });
+		// }
 	}
 	{
 		const { x, y, z, rx, ry, rz } = ship;
@@ -641,6 +409,7 @@ function update() {
 		p3: { rz: sun.rx * 0.05 },
 		ring: { rz: sun.rx * 0.5 },
 	});
+	updateUI();
 }
 
 addEventListener('DOMContentLoaded', () => {
@@ -649,8 +418,5 @@ addEventListener('DOMContentLoaded', () => {
 });
 
 window.g = {
-	renderables,
-	ship,
 	input,
-	physicsEnts,
 };

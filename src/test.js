@@ -1,5 +1,5 @@
 import W from './w.custom.esm.js'; 
-import { addRect } from './w-tools.js';
+import { addRect } from './w-shapes.js';
 import { vec3 } from './Vector3.js';
 
 // NOTE that W uses a Right-handed Cartesian Coordinate system
