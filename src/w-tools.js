@@ -1,4 +1,4 @@
-import W from './w.esm.js';
+import W from './w.custom.esm.js';
 
 // Cube
 //

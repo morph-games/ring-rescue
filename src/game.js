@@ -1,4 +1,4 @@
-import W from './w.esm.js';
+import W from './w.custom.esm.js';
 import input from './input.js';
 import { vec3, rad2deg, deg2rad } from './Vector3.js';
 import RandomGenerator from './RandomGenerator.js';
@@ -11,14 +11,16 @@ const { min, max, PI } = Math;
 // So world can be -500 --> 500 in any dimensions
 // Solar system is 30 trillion km diameter
 // so if the scale matches, then each 1.0 unit = 30 billion km
-const MAX_VEL = 1000;
-const SPACE_SIZE = 499;
+const MAX_VEL = 3000;
+const FAR = 25000;
+const SPACE_SIZE = FAR / 2; // The "radius" of the world
+const RING_RADIUS = 2000;
 const skyboxDist = SPACE_SIZE;
 const TWO_PI = PI * 2;
-const VEL_FRICTION = 1 / 10000;
-const SHIP_THRUST = 0.01;
-const KLAX_THRUST = 0.003;
-const KLAX_COUNT = 2;
+const VEL_FRICTION = 1 / 12000;
+const SHIP_THRUST = 0.02;
+const KLAX_THRUST = 0.006;
+const KLAX_COUNT = 5;
 
 const doc = document;
 
@@ -49,7 +51,7 @@ const klaxShip = {
 const klaxShips = [];
 const t = 1000 / 60;
 const camOffset = { back: -shipSize * 5, up: shipSize * 1.7, rx: 80, ry: 0, rz: 0 };
-let fov = 30;
+const cam = { fov: 30, aspect: 1, far: FAR };
 let rotation = 0;
 const steer = { rx: -90, ry: 0, rz: 0 };
 const physicsEnts = [ship];
@@ -99,11 +101,11 @@ function clamp(value, min=0, max=1) { return value < min ? min : value > max ? m
 function lerp(percent, valueA, valueB) { return valueA + clamp(percent) * (valueB-valueA); }
 function rand(valueA=1, valueB=0) { return valueB + Math.random() * (valueA-valueB); }
 
-const randCoord = () => gen.rand(-SPACE_SIZE, SPACE_SIZE);
-const randCoords = () => ({
-	x: randCoord(),
-	y: randCoord(),
-	z: randCoord(),
+const randCoord = (n = SPACE_SIZE) => gen.rand(-n, n);
+const randCoords = (n) => ({
+	x: randCoord(n),
+	y: randCoord(n),
+	z: randCoord(n),
 });
 
 function rotateByDegree(v, o) {
@@ -191,14 +193,17 @@ function addAxisCubes(g, size) {
 function makeKlaxShip(i) {
 	const n = `k${i}`;
 	const b = KSHIP_COLOR1;
-	const pos = randCoords();
+	const pos = randCoords(RING_RADIUS);
 	// const pos = { x: 0, y: 0, z: 100 };
 
 	// const { rx, ry, rz } = vec3().toWAngles(vec3(ship));
+	const size = 5;
+	const coreSize = size / 2;
+	const strutSize = size / 2.5;
 	const k = {
 		n,
 		...structuredClone(klaxShip),
-		...pos, size: 5, r: 5,
+		...pos, size: 5, r: 10,
 		// rx, ry, rz,
 	};
 	// console.log(k);
@@ -206,8 +211,8 @@ function makeKlaxShip(i) {
 		// rx, ry, rz,
 	});
 	const g = n;
-	const core = { g, size: 2.5, x: -1.5, b: KSHIP_COLOR2 };
-	const strut = { g, size: 2, b: KSHIP_COLOR1 };
+	const core = { g, size: coreSize, x: -1.5, b: KSHIP_COLOR2 };
+	const strut = { g, size: strutSize, b: KSHIP_COLOR1 };
 	W.cube({ ...core, n: n + 'c', rx: 45, b: KSHIP_COLOR1 });
 	loop(4, (i) => {
 		W.cube({ ...core, n: `${n}cc${i}`, x: -2 - i, size: 2.5 - (0.5 * i),
@@ -222,7 +227,7 @@ function makeKlaxShip(i) {
 	W.longRect({ ...strut, n: n + 'wing2', y: 2, x: 1.5, rx: 90, ry: 45, rz: 45, b });
 	W.longRect({ ...strut, n: n + 'wing3', y: -2, rx: 90, ry: 45, rz: 45, });
 	W.longRect({ ...strut, n: n + 'wing4', y: -2, x: 1.5, rx: 90, ry: 45, rz: -45, b });
-	W.sphere({ n: n + 'shield', g, size: 10, b: 'ebd69403' });
+	W.sphere({ n: n + 'shield', g, size: 10, b: 'ebd69404' });
 	// addAxisCubes(g, 4);
 	
 	physicsEnts.push(k);
@@ -230,9 +235,30 @@ function makeKlaxShip(i) {
 	klaxShips.push(k);
 }
 
+function setupCanvasSize(c) {
+	const w = c.clientWidth;
+	const h = c.clientHeight
+	if (w > h) {
+		cam.aspect = w/h;
+		c.height = min(w, 800);
+		c.width = w / cam.aspect;
+	} else {
+		// Make it square
+		c.width = c.height = min(w, 800);
+		cam.aspect = 1;
+	}
+	// const minDim = max(min(ogW, ogH), 800);
+	// const aspect = ogW / ogH;
+	// c.width = minDim * aspect;
+	// c.height = minDim * aspect;
+	// console.log(aspect, ogW, ogH, c.width, c.height);
+	// cam.aspect = aspect;
+}
+
 
 function setup() {
 	const c = $id('canvas');
+	setupCanvasSize(c);
 	input.setup({
 		lockElt: c,
 		keys: {
@@ -261,16 +287,17 @@ function setup() {
 
 	// Groups and objects
 	W.group({ n: 'system' });
-	['sun', 'ring', 'p1', 'p2'].forEach((n) => W.group({ n, g: 'system' }));
+	['sun', 'ring', 'p1', 'p2', 'p3'].forEach((n) => W.group({ n, g: 'system' }));
 	['ship', 'skybox'].forEach((n) => W.group({ n })); // Are not in a group
 
 	const sunFlare = makeStarCanvas(16, `${SUN_COLOR}88`, 'sun', .7);
 
-	W.sphere({ n: 'outerSun', g: 'sun', size: 50, b: `${SUN_COLOR}88` });
-	W.sphere({ n: 'innerSun', g: 'sun', size: 46, b: SUN_COLOR });
-	W.billboard({ n: 'sunFlare', g: 'sun', size: 60, b: SUN_COLOR, t: sunFlare });
-	W.sphere({ n: 'planet1', g: 'p1', ...getXYCoordinatesFromPolar(0.5, 300), size: 20, b: P1_COLOR });
-	W.sphere({ n: 'planet2', g: 'p2', ...getXYCoordinatesFromPolar(0.7, 400), size: 8, b: P2_COLOR });
+	W.sphere({ n: 'outerSun', g: 'sun', size: 500, b: `${SUN_COLOR}88` });
+	W.sphere({ n: 'innerSun', g: 'sun', size: 480, b: SUN_COLOR });
+	W.billboard({ n: 'sunFlare', g: 'sun', size: 640, b: SUN_COLOR, t: sunFlare });
+	W.sphere({ n: 'planet1', g: 'p1', ...getXYCoordinatesFromPolar(0.5, 3000), size: 200, b: P1_COLOR });
+	W.sphere({ n: 'planet2', g: 'p2', ...getXYCoordinatesFromPolar(0.7, 4000), size: 120, b: P2_COLOR });
+	W.sphere({ n: 'planet3', g: 'p3', ...getXYCoordinatesFromPolar(0.7, 7000), size: 80, b: P1_COLOR });
 
 	{
 		const b = SPACE_COLOR;
@@ -305,13 +332,12 @@ function setup() {
 	
 	loop(KLAX_COUNT, makeKlaxShip);
 
-	const r = 200;
 	const TWO_PI = Math.PI * 2;
 	loop(32, (i, n) => {
 		const angle = i === 0 ? 0 : (TWO_PI * i) / n;
 		const deg = rad2deg(angle);
 		// console.log(i, angle, x, y);
-		let { x, y } = getXYCoordinatesFromPolar(angle, r);
+		let { x, y } = getXYCoordinatesFromPolar(angle, RING_RADIUS);
 		const g = `r${i}`;
 		W.group({ n: g, g: 'ring' });
 		W.ringWall({
@@ -320,7 +346,7 @@ function setup() {
 			x,
 			y,
 			rz: deg,
-			size: 2,
+			size: 20,
 			b: RING_COLOR,
 		});
 		// y += 10;
@@ -330,16 +356,16 @@ function setup() {
 			x,
 			y,
 			rz: deg,
-			size: 5,
+			size: 50,
 			b: RING_COLOR2,
 		});
 	});
 	// Create litter / stardust
-	loop(200, (i) => {
+	loop(300, (i) => {
 		W.billboard({
 			n: `litter${i}`,
 			g: 'system',
-			...randCoords(),
+			...randCoords(RING_RADIUS * 2),
 			size: 1,
 			b: '555e',
 		});
@@ -351,7 +377,7 @@ function setup() {
 			passType: 'crate',
 			passthru: ['crate'],
 			g: 'system',
-			...randCoords(),
+			...randCoords(RING_RADIUS * 1.5),
 			vel: { ...vec3() },
 			size: 3,
 			r: 2, // collision radius
@@ -533,11 +559,12 @@ function update() {
 
 	// Handle inputs and update player ship
 	const { down } = input;
-	if (down[']']) fov += .5;
-	if (down['[']) fov -= .5;
+	if (down[']']) cam.fov += .5;
+	if (down['[']) cam.fov -= .5;
 	if (down.p) return;
-	let thrustAmount = down.w ? SHIP_THRUST : 0;
-	if (down.s) thrustAmount = SHIP_THRUST * -.5;
+	const boost = down.Shift ? 2 : 1;
+	let thrustAmount = down.w || down.W ? SHIP_THRUST * boost : 0;
+	if (down.s) thrustAmount = SHIP_THRUST * boost * -.5;
 	thrust(ship, thrustAmount);
 	if (thrustAmount === 0) {
 		W.delete('shipEngineIgnite1');
@@ -578,7 +605,9 @@ function update() {
 	steerRotation(ship, steer, 0.05);
 	{
 		const unit = rotateByDegree(vec3(0, camOffset.back, camOffset.up), steer);
-		W.camera({ ...unit, ...addAngles(camOffset, steer), a: 1000, fov });
+		// TODO: only add cam if fov or aspect ratio has changed
+		const fov = cam.fov + (thrustAmount && (boost > 1) ? 2 : 0);
+		W.camera({ ...unit, ...addAngles(camOffset, steer), a: 1000, ...cam, fov });
 	}
 	{
 		const { x, y, z, rx, ry, rz } = ship;
@@ -591,7 +620,7 @@ function update() {
 		if (typeof p.decay === 'number') {
 			p.decay -= sec;
 			if (p.decay <= 0) {
-				console.log('decay', p.n);
+				// console.log('decay', p.n);
 				W.delete(p.n);
 				delete renderables[k];
 				const i = physicsEnts.findIndex((e) => e.n === p.n);
@@ -609,6 +638,7 @@ function update() {
 		innerSun: { rx: sun.rx, ry: sun.ry },
 		p1: { rz: sun.rx * 0.1 },
 		p2: { rz: sun.rx * 0.15 },
+		p3: { rz: sun.rx * 0.05 },
 		ring: { rz: sun.rx * 0.5 },
 	});
 }

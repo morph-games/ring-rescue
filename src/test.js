@@ -1,4 +1,4 @@
-import W from './w.esm.js'; 
+import W from './w.custom.esm.js'; 
 import { addRect } from './w-tools.js';
 import { vec3 } from './Vector3.js';
 

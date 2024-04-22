@@ -18,8 +18,9 @@
 				text-align: center;
 			}
 			#canvas {
-				width: 98vmin;
-				height: 98vmin;
+				width: 100vw;
+				height: calc(min(100vh, 100vmin));
+				box-sizing: border-box;
 				margin: 0 auto;
 				border: solid 1vmin transparent;
 			}
@@ -37,7 +38,7 @@
 		</style>
 	</head>
 	<body>
-		<canvas id="canvas" width="800" height="800"></canvas>
+		<canvas id="canvas"></canvas>
 		<p id="goals">[Tab] = 🖱️ Mouselock steering</p>
 		<i id="loaded" style="display: none"></i>
 	</body>
