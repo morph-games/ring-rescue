@@ -1,6 +1,6 @@
 import W from './w.custom.esm.js';
 import input from './input.js';
-import { makeStarSystem } from './star-system.js';
+import { makeStarSystem, updateSystem } from './star-system.js';
 import { BG_COLOR, FLAME_ON_COLOR, FLAME_OFF_COLOR,
 } from './colors.js';
 import { vec3 } from './Vector3.js';
@@ -102,6 +102,7 @@ function setup() {
 	addPyramid('pyramid');
 	addPyramid('longPyramid', { y: .8 });
 	addSphere('sphere');
+	addSphere('simpleSphere', { precision: 6 });
 	addSphere('ufo', { y: 3, precision: 10 });
 	// addRect('rect', { y: 1 });
 
@@ -400,16 +401,10 @@ function update() {
 	});
 
 	// Animate the system and renderables
-	sun.rx += t / 90;
-	sun.ry += t / 100;
 	move({
 		...renderables,
 		system: { x: -ship.x, y: -ship.y, z: -ship.z, a: t },
-		innerSun: { rx: sun.rx, ry: sun.ry },
-		p1: { rz: sun.rx * 0.1 },
-		p2: { rz: sun.rx * 0.15 },
-		p3: { rz: sun.rx * 0.05 },
-		ring: { rz: sun.rx * 0.5 },
+		...updateSystem(t),
 	});
 	updateUI();
 }

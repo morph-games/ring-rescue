@@ -9,6 +9,7 @@ import { SHIP_SIZE, RING_RADIUS, SPACE_SIZE } from './scale.js';
 import RandomGenerator from './RandomGenerator.js';
 
 let W;
+let spin = 0;
 
 const KLAX_COUNT = 6;
 const seed = 1234;
@@ -55,6 +56,7 @@ const klaxShip = {
 const klaxShips = [];
 const physicsEnts = [ship];
 const renderables = {};
+const groups = {};
 
 function makeKlaxShip(i) {
 	const n = `k${i}`;
@@ -104,18 +106,41 @@ function makeKlaxShip(i) {
 export function makeStarSystem(Wparam, spaceSize) {
 	W = Wparam;
 	// Groups and objects
-	W.group({ n: 'system' });
-	['sun', 'ring', 'p1', 'p2', 'p3'].forEach((n) => W.group({ n, g: 'system' }));
+	const addGroup = (n, g) => {
+		const o = { n, rx: 0, ry: 0, rz: 0 };
+		if (g) o.g = g;
+		W.group(o);
+		groups[n] = o;
+	};
+	addGroup('system');
+	['sun', 'ring', 'p1', 'p2', 'p3', 'a1', 'a2', 'a3'].forEach((n) => addGroup(n, 'system'));
 	['ship', 'skybox'].forEach((n) => W.group({ n })); // Are not in a group
 
 	const sunFlare = makeStarCanvas(16, `${SUN_COLOR}88`, 'sun', .7);
 
-	W.sphere({ n: 'outerSun', g: 'sun', size: 500, b: `${SUN_COLOR}88` });
-	W.sphere({ n: 'innerSun', g: 'sun', size: 480, b: SUN_COLOR });
-	W.billboard({ n: 'sunFlare', g: 'sun', size: 640, b: SUN_COLOR, t: sunFlare });
-	W.sphere({ n: 'planet1', g: 'p1', ...getXYCoordinatesFromPolar(0.5, 3000), size: 200, b: P1_COLOR, s:1 });
-	W.sphere({ n: 'planet2', g: 'p2', ...getXYCoordinatesFromPolar(0.7, 4000), size: 120, b: P2_COLOR, s:1 });
-	W.sphere({ n: 'planet3', g: 'p3', ...getXYCoordinatesFromPolar(0.7, 7000), size: 80, b: P1_COLOR, s:1 });
+	// W.sphere({ n: 'outerSun', g: 'sun', size: 500, b: `${SUN_COLOR}88` });
+	// W.sphere({ n: 'innerSun', g: 'sun', size: 480, b: SUN_COLOR });
+	// W.billboard({ n: 'sunFlare', g: 'sun', size: 640, b: SUN_COLOR, t: sunFlare });
+	// W.sphere({ n: 'planet1', g: 'p1', ...getXYCoordinatesFromPolar(0.5, 3000), size: 200, b: P1_COLOR, s:1 });
+	// W.sphere({ n: 'planet2', g: 'p2', ...getXYCoordinatesFromPolar(0.7, 4000), size: 120, b: P2_COLOR, s:1 });
+	// W.sphere({ n: 'planet3', g: 'p3', ...getXYCoordinatesFromPolar(0.7, 7000), size: 80, b: P1_COLOR, s:1 });
+
+	const shape = 'sphere';
+	const asteroid = { shape: 'simpleSphere', b: P1_COLOR };
+	[
+		{ shape, n: 'outerSun', g: 'sun', size: 500, b: `${SUN_COLOR}88` },
+		{ shape, n: 'innerSun', g: 'sun', size: 480, b: SUN_COLOR },
+		{ shape: 'billboard', n: 'sunFlare', g: 'sun', size: 640, b: SUN_COLOR, t: sunFlare },
+		{ shape, n: 'planet1', g: 'p1', ...getXYCoordinatesFromPolar(.5, 3000), size: 200, b: P1_COLOR, s:1 },
+		{ shape, n: 'planet2', g: 'p2', ...getXYCoordinatesFromPolar(.7, 4000), size: 120, b: P2_COLOR, s:1 },
+		{ shape, n: 'planet3', g: 'p3', ...getXYCoordinatesFromPolar(2, 7000), size: 80, b: P1_COLOR, s:1 },
+		{ ...asteroid, n: 'asteroid1', g: 'a1', ...getXYCoordinatesFromPolar(3, RING_RADIUS / 2), size: 30 },
+		{ ...asteroid, n: 'asteroid2', g: 'a2', ...getXYCoordinatesFromPolar(3.5, RING_RADIUS / 1.7), size: 35 },
+		{ ...asteroid, n: 'asteroid3', g: 'a3', ...getXYCoordinatesFromPolar(5, RING_RADIUS / 1.8), size: 40 },
+	].forEach((o) => {
+		W[o.shape](o);
+		renderables[o.n] = o;
+	});
 
 	{
 		const b = SPACE_COLOR;
@@ -138,9 +163,9 @@ export function makeStarSystem(Wparam, spaceSize) {
 		W.longPyramid({ n: 'shipBase', g, size: SHIP_SIZE * .6, y: SHIP_SIZE * .6, b });
 		W.ufo({ n: 'shipBody', g, y: SHIP_SIZE * -.2, rx: 90, size: SHIP_SIZE * 1.3, b, s:1 });
 		W.ufo({ n: 'sCockpit', g, y: SHIP_SIZE * -.2, rx: 90, z: SHIP_SIZE * .4, size: SHIP_SIZE * .5, b: `666c`, s:1 });
-		const component = { n: 'shipComp1', g, x: SHIP_SIZE * -.3, y: -SHIP_SIZE * .7, size: SHIP_SIZE * .4, b };
+		const component = { n: 'shipComp1', g, x: SHIP_SIZE * -.3, y: -SHIP_SIZE * .7, rz: -25, size: SHIP_SIZE * .4, b };
 		W.cube(component);
-		W.cube({ ...component, n: 'shipComp2', x: -component.x });
+		W.cube({ ...component, n: 'shipComp2', x: -component.x, rz: 25, });
 		const engX = SHIP_SIZE * 1.1;
 		const eng = { n: 'shipEngine1', g, ry: 45, rx: 90, x: engX, y: SHIP_SIZE * -.3, size: SHIP_SIZE, b: SHIP_COLOR2 };
 		W.longerRect(eng);
@@ -218,9 +243,24 @@ export function makeStarSystem(Wparam, spaceSize) {
 		W.cube(crate);
 	});
 	return {
+		groups,
 		ship,
 		renderables,
 		physicsEnts,
 		klaxShips,
+	};
+}
+
+export function updateSystem(t) {
+	spin += t / 90;
+	return {
+		innerSun: { rx: spin, ry: spin * .9 },
+		p1: { rz: spin * 0.1 },
+		p2: { rz: spin * 0.15 },
+		p3: { rz: spin * 0.05 },
+		ring: { rz: spin * 0.5 },
+		a1: { rz: spin * .7 },
+		a2: { rz: spin * .6 },
+		a3: { rz: spin * .5 },
 	};
 }
