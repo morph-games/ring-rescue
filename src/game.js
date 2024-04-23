@@ -1,25 +1,29 @@
 import W from './w.custom.esm.js';
 import input from './input.js';
 import { makeStarSystem, updateSystem } from './star-system.js';
-import { BG_COLOR, FLAME_ON_COLOR, FLAME_OFF_COLOR,
+import { BG_COLOR, FLAME_ON_COLOR, FLAME_OFF_COLOR, SCAN_COLOR,
 } from './colors.js';
 import { vec3 } from './Vector3.js';
 import { addPyramid, addRect, addSphere } from './w-shapes.js';
 import { makeTextures } from './textures.js';
 // import { zzfx } from 'zzfx';
 import { zzfx } from './libs/ZzFX.js';
-import { $id, $html } from './dom.js';
-import { SHIP_SIZE, FAR, SPACE_SIZE } from './scale.js';
+import { $, $id, $html, flashBorder } from './dom.js';
+import { SHIP_SIZE, FAR, SPACE_SIZE, SCAN_SIZE } from './scale.js';
 import { getDirectionUnit, loop, clamp, lerp, rotateByDegree, addAngles, uid, rand } from './utils.js';
 
 const { min, max, PI, round, abs } = Math;
 
+const g = {
+	input,
+	paused: 0,
+};
 let sys;
 let textures = {};
 let parts = 0;
 const MAX_PARTS = 5;
-const MAX_VEL = 3000;
-const VEL_FRICTION = 1 / 12000;
+const MAX_VEL = 1000;
+const VEL_FRICTION = .2; // Friction per tick (0.016)
 
 const sun = { rx: 0, ry: 0, ry: 0 };
 
@@ -33,6 +37,7 @@ const steer = { rx: -90, ry: 0, rz: 0 };
 
 const achievements = [
 	'Check steering: [Tab] to toggle mouse-lock',
+	'Scan: Hold [C]',
 	'Thrusters: [W]',
 	'Fire weapons: [Space] or [Click]',
 ].map((t) => ({ t, done: 0 }));
@@ -51,6 +56,13 @@ function updateAchievements() {
 		+ `<li>Klaxonian Ships Destroyed: ${kills} / ${sys.klaxShips.length}</li>`
 		+ `<li>Ring Repair Parts: ${parts} / ${MAX_PARTS}</li>`;
 	$html('goals', html);
+}
+
+function gameOver() {
+	g.paused = 1;
+	input.unlock();
+	$('main').classList.add('end');
+	$id('end').style.display = 'flex';
 }
 
 function setupCanvasSize(c) {
@@ -81,6 +93,10 @@ function setup() {
 		lockElt: c,
 		keys: {
 			Tab: () => { achieve(0); input.toggleLock(); },
+			p: () => {
+				g.paused = !g.paused;
+				console.log('p', g.paused);
+			},
 			// w: shipThrust(1)
 		}
 	});
@@ -111,6 +127,11 @@ function setup() {
 		window[k] = sys[k];
 		g[k] = sys[k];
 	});
+
+	sys.klaxShips.forEach((k, i) => {
+		W.billboard({ n: `scan${i}`, g: 'system', x: k.x, y: k.y, z: k.z, size: 100, b: SCAN_COLOR });
+	});
+
 	updateAchievements();
 }
 
@@ -120,10 +141,13 @@ function thrust(o, amount = 0) {
 }
 
 function physics(o, sec) {
+	// If no thrust then apply friction (unrealistic in space? let's blame it on lots of star dust)
+	const friction = (typeof o.friction === 'number') ? VEL_FRICTION * o.friction : VEL_FRICTION;
+	const velVector = vec3(o.vel);
+	o.vel = velVector.sub(velVector.normalize(friction));
 	['x', 'y', 'z'].forEach((a) => {
 		let force = (o.thrust) ? o.thrust[a] || 0 : 0;
-		// If no thrust then apply friction (unrealistic in space? let's blame it on lots of star dust)
-		if (force === 0 && o.friction !== 0) force = -o.vel[a] * VEL_FRICTION;
+		// force = -o.vel[a] * friction;
 		const acc = force / (o.mass || 1);
 		o.vel[a] = clamp(o.vel[a] + (acc / sec), -MAX_VEL, MAX_VEL);
 		if (o.vel[a] < 0.0001 && o.vel[a] > -0.0001) o.vel[a] = 0;
@@ -134,9 +158,11 @@ function physics(o, sec) {
 function dmg(a, b) {
 	if (a.damage && b.hp) {
 		const isShipHurt = (b === ship)
+		console.log('Damage', b);
 		b.hp -= a.damage;
 		// a.decay = 0;
 		if (b.hp <= 0) {
+			console.log('Destroy', b);
 			b.decay = 0;
 			if (!isShipHurt) updateAchievements();
 		}
@@ -239,7 +265,7 @@ function updateShip(k, sec) {
 		cool(k, 'thrustCooldown', sec);
 	} else {
 		thrust(k, k.thrustForce);
-		k.thrustCooldown = rand(.5, 3);
+		k.thrustCooldown = rand(.5, 1);
 	}
 	if (k.fireCooldown) {
 		cool(k, 'fireCooldown', sec);
@@ -249,18 +275,20 @@ function updateShip(k, sec) {
 	}
 }
 
+const basePlasmaThrustScale = .001;
 const PROJECTILE_TYPES = {
-	plasma: { vScale: 25, tScale: 0.0005, damage: 1, size: 1,
+	plasma: { vScale: 45, tScale: basePlasmaThrustScale * 4, damage: 1, size: 1,
 		sound: [,.1,295,.02,.01,.08,,1.72,-3.5,.2,,,,.2,,,.08,.62,.09] },
-	photon: { vScale: 15, tScale: 0.0001, damage: 3, size: 1,
+	photon: { vScale: 25, tScale: basePlasmaThrustScale * 1.2, damage: 3, size: 1,
 		sound: [2.06,.35,212,.05,.08,.01,,1.66,-4.8,.2,50,,,1.7,,.5,.28,.65,.02] },
-	klaxPlasma: { vScale: 25, tScale: 0.0005, damage: 1, size: 10,
+	klaxPlasma: { vScale: 45, tScale: basePlasmaThrustScale * 2, damage: 1, size: 10,
 		sound: [.3,.4,241,.04,.03,.08,,.46,-7.7,,,,,,,.2,,.53,.05,.2],
 	},
 };
 
 function spawnPlasma(typeKey, from, passType, passthru) {
 	const { vScale, tScale, damage, size, sound } = PROJECTILE_TYPES[typeKey];
+	// if (tScale < VEL_FRICTION) console.warn('Not enough thrust to overcome friction');
 	const t = textures[typeKey];
 	const { x, y, z } = from;
 	const u = getDirectionUnit(from);
@@ -274,7 +302,7 @@ function spawnPlasma(typeKey, from, passType, passthru) {
 		vel: { ...v },
 		thrust: { ...u.scale(tScale) },
 		friction: 0,
-		decay: 5,
+		decay: 6,
 		damage,
 		r: 5,
 		passthru,
@@ -298,7 +326,13 @@ function updateUI() {
 	$html('si', html);
 }
 
+function removeFromArray(n, arr) {
+	const i = arr.findIndex((o) => o.n === n);
+	if (i !== -1) arr.splice(i, 1);
+}
+
 function update() {
+	if (g.paused) return;
 	const sec = t / 1000;
 	rotation = (rotation + sec) % 360;
 
@@ -311,8 +345,8 @@ function update() {
 	let thrustAmount = 0; 
 	if (down.s || down.S) {
 		thrustAmount = ship.thrustForce * boost * -.5;
-		down.w = false;
-		down.W = false;
+		down.w = 0;
+		down.W = 0;
 	} else if (down.w || down.W) {
 		thrustAmount = ship.thrustForce * boost;
 	}
@@ -327,7 +361,7 @@ function update() {
 		const vol = (boost > 1) ? .15 : .1;
 		const bitCrush = (boost > 1) ? .2 : .8;
 		zzfx(...[vol,,794,.02,.3,.32,,3.96,,.7,,,.16,2.1,,bitCrush,.1,.31,.27]);
-		achieve(1);
+		achieve(2);
 		const base = { g: 'ship', y: SHIP_SIZE * -1.31, rx: 70, size: .2, t: textures.tf };
 		W.billboard({ ...base, n: 'sIgnite1', x: -SHIP_SIZE * 1.1  });
 		W.billboard({ ...base, n: 'sIgnite2', x: SHIP_SIZE * 1.1 });
@@ -336,10 +370,18 @@ function update() {
 	if (ship.fireCooldown === 0 && (
 		down[' '] || (click && click.locked)
 	)) {
-		achieve(2);
+		achieve(3);
 		spawnPlasma((click && click.right) ? 'photon' : 'plasma', ship, 'plasma', ['ship', 'plasma']);
 		ship.fireCooldown = 0.3;
 	}
+	// Scan
+	if (down.c) achieve(1);
+	klaxShips.forEach((k, i) => {
+		W.move({ n: `scan${i}`, x: k.x, y: k.y, z: k.z, size: SCAN_SIZE,
+			b: (k.hp > 0 && down.c) ? SCAN_COLOR : '0000',
+		});
+	});
+
 	// Player cool down
 	ship.fireCooldown = max(ship.fireCooldown - sec, 0);
 
@@ -353,6 +395,9 @@ function update() {
 		o.collided = 0;
 		physics(o, sec);
 	});
+
+	// Check for player death
+	if (ship.hp <= 0) return gameOver();
 	
 	// Do steering
 	{
@@ -391,11 +436,16 @@ function update() {
 		if (typeof p.decay === 'number') {
 			p.decay -= sec;
 			if (p.decay <= 0) {
-				// console.log('decay', p.n);
-				W.delete(p.n);
+				if (p.isGroup) {
+					// We don't know the group's children, so we can't just delete the group
+					// otherwise the children will still get rendered
+					W.move({ n: p.n, x: FAR * 2 });
+				} else {
+					W.delete(p.n);
+				}
+				removeFromArray(p.n, physicsEnts);
+				removeFromArray(p.n, klaxShips);
 				delete renderables[k];
-				const i = physicsEnts.findIndex((e) => e.n === p.n);
-				if (i !== -1) physicsEnts.splice(i, 1);
 			}
 		}
 	});
@@ -414,6 +464,4 @@ addEventListener('DOMContentLoaded', () => {
 	setInterval(update, t);
 });
 
-window.g = {
-	input,
-};
+window.g = g;

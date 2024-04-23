@@ -18,6 +18,7 @@ const KSHIP_COLOR2 = '372b4e';
 const KSHIP_COLOR3 = '90d59c';
 const FLAME_ON_COLOR = 'ebd694dd';
 const FLAME_OFF_COLOR = 'ebd69400';
+const SCAN_COLOR = '90d59c';
 // https://lospec.com/palette-list/arjibi8
 // 8bc7bf - light cyan
 // 5796a1 - dark cyan
@@ -50,4 +51,5 @@ export {
 	KSHIP_COLOR3,
 	FLAME_ON_COLOR,
 	FLAME_OFF_COLOR,
+	SCAN_COLOR,
 };

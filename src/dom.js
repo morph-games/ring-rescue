@@ -1,6 +1,7 @@
 import { RED } from './colors.js';
 
 const doc = document;
+const $ = (q) => doc.querySelector(q);
 const $id = (id) => doc.getElementById(id);
 const $html = (id, h) => $id(id).innerHTML = h;
 function flashBorder(id, color = RED, duration = 1500) {
@@ -17,4 +18,4 @@ function flashBorder(id, color = RED, duration = 1500) {
 	);
 	animation.play();
 }
-export { doc, $html, $id, flashBorder };
+export { doc, $, $html, $id, flashBorder };

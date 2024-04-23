@@ -5,11 +5,13 @@
 
 const SHIP_SIZE = .3;
 const RING_RADIUS = 2000;
-const FAR = 25000;
+const FAR = 30000;
 const SPACE_SIZE = FAR / 2; // The "radius" of the world
+const SCAN_SIZE = 100;
 export {
 	SHIP_SIZE,
 	RING_RADIUS,
 	FAR,
 	SPACE_SIZE,
+	SCAN_SIZE,
 };

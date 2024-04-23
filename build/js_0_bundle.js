@@ -643,10 +643,26 @@
   const KSHIP_COLOR3 = '90d59c';
   const FLAME_ON_COLOR = 'ebd694dd';
   const FLAME_OFF_COLOR = 'ebd69400';
+  const SCAN_COLOR = '90d59c';
 
   const doc = document;
+  const $ = (q) => doc.querySelector(q);
   const $id = (id) => doc.getElementById(id);
   const $html = (id, h) => $id(id).innerHTML = h;
+  function flashBorder(id, color = RED, duration = 1500) {
+  	const animation = new Animation(
+  		(new KeyframeEffect(
+  			$id(id), // Element
+  			[ // Keyframes
+  				{ borderColor: color },
+  				{ borderColor: '#000' },
+  			],
+  			{ duration, direction: 'alternate', easing: 'linear' } // key frame settings
+  		)),
+  		doc.timeline,
+  	);
+  	animation.play();
+  }
 
   // Based off LittleJS's Vector2:
   // https://github.com/KilledByAPixel/LittleJS/blob/main/build/littlejs.esm.js#L693
@@ -996,8 +1012,9 @@
 
   const SHIP_SIZE = .3;
   const RING_RADIUS = 2000;
-  const FAR = 25000;
+  const FAR = 30000;
   const SPACE_SIZE = FAR / 2; // The "radius" of the world
+  const SCAN_SIZE = 100;
 
   // From LittleJS
   // https://github.com/KilledByAPixel/LittleJS/blob/main/build/littlejs.esm.js#L625C1-L657C2
@@ -1083,9 +1100,7 @@
   	const n = `k${i}`;
   	const b = KSHIP_COLOR1;
   	const pos = randCoords(RING_RADIUS);
-  	// const pos = { x: 0, y: 0, z: 100 };
-
-  	// const { rx, ry, rz } = vec3().toWAngles(vec3(ship));
+  	// const pos = { x: 0, y: 0, z: 6000 };
   	const size = 5;
   	const coreSize = size / 2;
   	const strutSize = size / 2.5;
@@ -1093,12 +1108,11 @@
   		n,
   		...structuredClone(klaxShip),
   		...pos, size: 5, r: 10,
+  		isGroup: 1, // Identify this as a group in renderables
   		// rx, ry, rz,
   	};
   	// console.log(k);
-  	W.group({ n, g: 'system', ...pos,
-  		// rx, ry, rz,
-  	});
+  	W.group({ n, g: 'system', ...pos });
   	const g = n;
   	const core = { g, size: coreSize, x: -1.5, b: KSHIP_COLOR2 };
   	const strut = { g, size: strutSize, b: KSHIP_COLOR1 };
@@ -1117,6 +1131,7 @@
   	W.longRect({ ...strut, n: n + 'wing3', y: -2, rx: 90, ry: 45, rz: 45, });
   	W.longRect({ ...strut, n: n + 'wing4', y: -2, x: 1.5, rx: 90, ry: 45, rz: -45, b });
   	W.sphere({ n: n + 'shield', g, size: 10, b: 'ebd69404' });
+  	// W.billboard({ n: n + 'tracker', g, size: 100, b: 'ff0' });
   	// addAxisCubes(g, 4);
   	
   	physicsEnts$1.push(k);
@@ -1177,16 +1192,15 @@
   			W.plane({ b: '000', ...settings, n: `skybox${i}`, g: 'skybox', size: spaceSize * 2 });
   		});
   	}
-  	// W.billboard({ n: 'flare', x: 0, y: 0, z: 0, size: 96, b: '#ff6633' });
-  	{
+  	{ // Build the Player's Ship
   		const b = SHIP_COLOR;
   		const g = 'ship';
   		W.longPyramid({ n: 'shipBase', g, size: SHIP_SIZE * .6, y: SHIP_SIZE * .6, b });
   		W.ufo({ n: 'shipBody', g, y: SHIP_SIZE * -.2, rx: 90, size: SHIP_SIZE * 1.3, b, s:1 });
   		W.ufo({ n: 'sCockpit', g, y: SHIP_SIZE * -.2, rx: 90, z: SHIP_SIZE * .4, size: SHIP_SIZE * .5, b: `666c`, s:1 });
-  		const component = { n: 'shipComp1', g, x: SHIP_SIZE * -.3, y: -SHIP_SIZE * .7, rz: -25, size: SHIP_SIZE * .4, b };
+  		const component = { n: 'shipComp1', g, x: SHIP_SIZE * -.3, y: -SHIP_SIZE * .7, ry: 0, size: SHIP_SIZE * .4, b };
   		W.cube(component);
-  		W.cube({ ...component, n: 'shipComp2', x: -component.x, rz: 25, });
+  		W.cube({ ...component, n: 'shipComp2', x: -component.x });
   		const engX = SHIP_SIZE * 1.1;
   		const eng = { n: 'shipEngine1', g, ry: 45, rx: 90, x: engX, y: SHIP_SIZE * -.3, size: SHIP_SIZE, b: SHIP_COLOR2 };
   		W.longerRect(eng);
@@ -1575,12 +1589,16 @@
 
   const { min, max, PI, round, abs } = Math;
 
+  const g = {
+  	input,
+  	paused: 0,
+  };
   let sys;
   let textures = {};
   let parts = 0;
   const MAX_PARTS = 5;
-  const MAX_VEL = 3000;
-  const VEL_FRICTION = 1 / 12000;
+  const MAX_VEL = 1000;
+  const VEL_FRICTION = .2; // Friction per tick (0.016)
 
   const t = 1000 / 60;
   const camOffset = { back: -SHIP_SIZE * 5, up: SHIP_SIZE * 2, rx: 80, ry: 0, rz: 0 };
@@ -1591,6 +1609,7 @@
 
   const achievements = [
   	'Check steering: [Tab] to toggle mouse-lock',
+  	'Scan: Hold [C]',
   	'Thrusters: [W]',
   	'Fire weapons: [Space] or [Click]',
   ].map((t) => ({ t, done: 0 }));
@@ -1609,6 +1628,13 @@
   		+ `<li>Klaxonian Ships Destroyed: ${kills} / ${sys.klaxShips.length}</li>`
   		+ `<li>Ring Repair Parts: ${parts} / ${MAX_PARTS}</li>`;
   	$html('goals', html);
+  }
+
+  function gameOver() {
+  	g.paused = 1;
+  	input.unlock();
+  	$('main').classList.add('end');
+  	$id('end').style.display = 'flex';
   }
 
   function setupCanvasSize(c) {
@@ -1639,6 +1665,10 @@
   		lockElt: c,
   		keys: {
   			Tab: () => { achieve(0); input.toggleLock(); },
+  			p: () => {
+  				g.paused = !g.paused;
+  				console.log('p', g.paused);
+  			},
   			// w: shipThrust(1)
   		}
   	});
@@ -1669,6 +1699,11 @@
   		window[k] = sys[k];
   		g[k] = sys[k];
   	});
+
+  	sys.klaxShips.forEach((k, i) => {
+  		W$1.billboard({ n: `scan${i}`, g: 'system', x: k.x, y: k.y, z: k.z, size: 100, b: SCAN_COLOR });
+  	});
+
   	updateAchievements();
   }
 
@@ -1678,10 +1713,13 @@
   }
 
   function physics(o, sec) {
+  	// If no thrust then apply friction (unrealistic in space? let's blame it on lots of star dust)
+  	const friction = (typeof o.friction === 'number') ? VEL_FRICTION * o.friction : VEL_FRICTION;
+  	const velVector = vec3(o.vel);
+  	o.vel = velVector.sub(velVector.normalize(friction));
   	['x', 'y', 'z'].forEach((a) => {
   		let force = (o.thrust) ? o.thrust[a] || 0 : 0;
-  		// If no thrust then apply friction (unrealistic in space? let's blame it on lots of star dust)
-  		if (force === 0 && o.friction !== 0) force = -o.vel[a] * VEL_FRICTION;
+  		// force = -o.vel[a] * friction;
   		const acc = force / (o.mass || 1);
   		o.vel[a] = clamp(o.vel[a] + (acc / sec), -MAX_VEL, MAX_VEL);
   		if (o.vel[a] < 0.0001 && o.vel[a] > -0.0001) o.vel[a] = 0;
@@ -1692,9 +1730,11 @@
   function dmg(a, b) {
   	if (a.damage && b.hp) {
   		const isShipHurt = (b === ship);
+  		console.log('Damage', b);
   		b.hp -= a.damage;
   		// a.decay = 0;
   		if (b.hp <= 0) {
+  			console.log('Destroy', b);
   			b.decay = 0;
   			if (!isShipHurt) updateAchievements();
   		}
@@ -1796,7 +1836,7 @@
   		cool(k, 'thrustCooldown', sec);
   	} else {
   		thrust(k, k.thrustForce);
-  		k.thrustCooldown = rand(.5, 3);
+  		k.thrustCooldown = rand(.5, 1);
   	}
   	if (k.fireCooldown) {
   		cool(k, 'fireCooldown', sec);
@@ -1806,18 +1846,20 @@
   	}
   }
 
+  const basePlasmaThrustScale = .001;
   const PROJECTILE_TYPES = {
-  	plasma: { vScale: 25, tScale: 0.0005, damage: 1, size: 1,
+  	plasma: { vScale: 45, tScale: basePlasmaThrustScale * 4, damage: 1, size: 1,
   		sound: [,.1,295,.02,.01,.08,,1.72,-3.5,.2,,,,.2,,,.08,.62,.09] },
-  	photon: { vScale: 15, tScale: 0.0001, damage: 3, size: 1,
+  	photon: { vScale: 25, tScale: basePlasmaThrustScale * 1.2, damage: 3, size: 1,
   		sound: [2.06,.35,212,.05,.08,.01,,1.66,-4.8,.2,50,,,1.7,,.5,.28,.65,.02] },
-  	klaxPlasma: { vScale: 25, tScale: 0.0005, damage: 1, size: 10,
+  	klaxPlasma: { vScale: 45, tScale: basePlasmaThrustScale * 2, damage: 1, size: 10,
   		sound: [.3,.4,241,.04,.03,.08,,.46,-7.7,,,,,,,.2,,.53,.05,.2],
   	},
   };
 
   function spawnPlasma(typeKey, from, passType, passthru) {
   	const { vScale, tScale, damage, size, sound } = PROJECTILE_TYPES[typeKey];
+  	// if (tScale < VEL_FRICTION) console.warn('Not enough thrust to overcome friction');
   	const t = textures[typeKey];
   	const { x, y, z } = from;
   	const u = getDirectionUnit(from);
@@ -1831,7 +1873,7 @@
   		vel: { ...v },
   		thrust: { ...u.scale(tScale) },
   		friction: 0,
-  		decay: 5,
+  		decay: 6,
   		damage,
   		r: 5,
   		passthru,
@@ -1855,7 +1897,13 @@
   	$html('si', html);
   }
 
+  function removeFromArray(n, arr) {
+  	const i = arr.findIndex((o) => o.n === n);
+  	if (i !== -1) arr.splice(i, 1);
+  }
+
   function update() {
+  	if (g.paused) return;
   	const sec = t / 1000;
 
   	// Handle inputs and update player ship
@@ -1867,8 +1915,8 @@
   	let thrustAmount = 0; 
   	if (down.s || down.S) {
   		thrustAmount = ship.thrustForce * boost * -.5;
-  		down.w = false;
-  		down.W = false;
+  		down.w = 0;
+  		down.W = 0;
   	} else if (down.w || down.W) {
   		thrustAmount = ship.thrustForce * boost;
   	}
@@ -1883,7 +1931,7 @@
   		const vol = (boost > 1) ? .15 : .1;
   		const bitCrush = (boost > 1) ? .2 : .8;
   		zzfx(...[vol,,794,.02,.3,.32,,3.96,,.7,,,.16,2.1,,bitCrush,.1,.31,.27]);
-  		achieve(1);
+  		achieve(2);
   		const base = { g: 'ship', y: SHIP_SIZE * -1.31, rx: 70, size: .2, t: textures.tf };
   		W$1.billboard({ ...base, n: 'sIgnite1', x: -SHIP_SIZE * 1.1  });
   		W$1.billboard({ ...base, n: 'sIgnite2', x: SHIP_SIZE * 1.1 });
@@ -1892,10 +1940,19 @@
   	if (ship.fireCooldown === 0 && (
   		down[' '] || (click && click.locked)
   	)) {
-  		achieve(2);
+  		achieve(3);
   		spawnPlasma((click && click.right) ? 'photon' : 'plasma', ship, 'plasma', ['ship', 'plasma']);
   		ship.fireCooldown = 0.3;
   	}
+
+
+  	if (down.c) achieve(1);
+  	klaxShips.forEach((k, i) => {
+  		W$1.move({ n: `scan${i}`, x: k.x, y: k.y, z: k.z, size: SCAN_SIZE,
+  			b: (k.hp > 0 && down.c) ? SCAN_COLOR : '0000',
+  		});
+  	});
+
   	// Player cool down
   	ship.fireCooldown = max(ship.fireCooldown - sec, 0);
 
@@ -1909,6 +1966,9 @@
   		o.collided = 0;
   		physics(o, sec);
   	});
+
+  	// Check for player death
+  	if (ship.hp <= 0) return gameOver();
   	
   	// Do steering
   	{
@@ -1946,11 +2006,16 @@
   		if (typeof p.decay === 'number') {
   			p.decay -= sec;
   			if (p.decay <= 0) {
-  				// console.log('decay', p.n);
-  				W$1.delete(p.n);
+  				if (p.isGroup) {
+  					// We don't know the group's children, so we can't just delete the group
+  					// otherwise the children will still get rendered
+  					W$1.move({ n: p.n, x: FAR * 2 });
+  				} else {
+  					W$1.delete(p.n);
+  				}
+  				removeFromArray(p.n, physicsEnts);
+  				removeFromArray(p.n, klaxShips);
   				delete renderables[k];
-  				const i = physicsEnts.findIndex((e) => e.n === p.n);
-  				if (i !== -1) physicsEnts.splice(i, 1);
   			}
   		}
   	});
@@ -1969,8 +2034,6 @@
   	setInterval(update, t);
   });
 
-  window.g = {
-  	input,
-  };
+  window.g = g;
 
 })();

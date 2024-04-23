@@ -62,9 +62,7 @@ function makeKlaxShip(i) {
 	const n = `k${i}`;
 	const b = KSHIP_COLOR1;
 	const pos = randCoords(RING_RADIUS);
-	// const pos = { x: 0, y: 0, z: 100 };
-
-	// const { rx, ry, rz } = vec3().toWAngles(vec3(ship));
+	// const pos = { x: 0, y: 0, z: 6000 };
 	const size = 5;
 	const coreSize = size / 2;
 	const strutSize = size / 2.5;
@@ -72,12 +70,11 @@ function makeKlaxShip(i) {
 		n,
 		...structuredClone(klaxShip),
 		...pos, size: 5, r: 10,
+		isGroup: 1, // Identify this as a group in renderables
 		// rx, ry, rz,
 	};
 	// console.log(k);
-	W.group({ n, g: 'system', ...pos,
-		// rx, ry, rz,
-	});
+	W.group({ n, g: 'system', ...pos });
 	const g = n;
 	const core = { g, size: coreSize, x: -1.5, b: KSHIP_COLOR2 };
 	const strut = { g, size: strutSize, b: KSHIP_COLOR1 };
@@ -96,6 +93,7 @@ function makeKlaxShip(i) {
 	W.longRect({ ...strut, n: n + 'wing3', y: -2, rx: 90, ry: 45, rz: 45, });
 	W.longRect({ ...strut, n: n + 'wing4', y: -2, x: 1.5, rx: 90, ry: 45, rz: -45, b });
 	W.sphere({ n: n + 'shield', g, size: 10, b: 'ebd69404' });
+	// W.billboard({ n: n + 'tracker', g, size: 100, b: 'ff0' });
 	// addAxisCubes(g, 4);
 	
 	physicsEnts.push(k);
@@ -156,16 +154,15 @@ export function makeStarSystem(Wparam, spaceSize) {
 			W.plane({ b: '000', ...settings, n: `skybox${i}`, g: 'skybox', size: spaceSize * 2 });
 		});
 	}
-	// W.billboard({ n: 'flare', x: 0, y: 0, z: 0, size: 96, b: '#ff6633' });
-	{
+	{ // Build the Player's Ship
 		const b = SHIP_COLOR;
 		const g = 'ship';
 		W.longPyramid({ n: 'shipBase', g, size: SHIP_SIZE * .6, y: SHIP_SIZE * .6, b });
 		W.ufo({ n: 'shipBody', g, y: SHIP_SIZE * -.2, rx: 90, size: SHIP_SIZE * 1.3, b, s:1 });
 		W.ufo({ n: 'sCockpit', g, y: SHIP_SIZE * -.2, rx: 90, z: SHIP_SIZE * .4, size: SHIP_SIZE * .5, b: `666c`, s:1 });
-		const component = { n: 'shipComp1', g, x: SHIP_SIZE * -.3, y: -SHIP_SIZE * .7, rz: -25, size: SHIP_SIZE * .4, b };
+		const component = { n: 'shipComp1', g, x: SHIP_SIZE * -.3, y: -SHIP_SIZE * .7, ry: 0, size: SHIP_SIZE * .4, b };
 		W.cube(component);
-		W.cube({ ...component, n: 'shipComp2', x: -component.x, rz: 25, });
+		W.cube({ ...component, n: 'shipComp2', x: -component.x });
 		const engX = SHIP_SIZE * 1.1;
 		const eng = { n: 'shipEngine1', g, ry: 45, rx: 90, x: engX, y: SHIP_SIZE * -.3, size: SHIP_SIZE, b: SHIP_COLOR2 };
 		W.longerRect(eng);
