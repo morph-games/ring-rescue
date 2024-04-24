@@ -13,6 +13,7 @@
 
 import { exec } from 'child_process';
 import fs from 'node:fs';
+import CleanCSS from 'clean-css';
 
 // Note: Roadroller can create code that vite (and maybe other servers?) don't like, so the
 // built index.html won't be served by vite. For this reason I have roadroller turned off by
@@ -54,6 +55,24 @@ function findReplaceString(html, code) {
 	return chunks[1].split('-->')[0].trim();
 }
 
+function findSource(replaceString) {
+	let i = replaceString.indexOf('src=');
+	if (i === -1) {
+		i = replaceString.indexOf('href=');
+		if (i === -1) {
+			console.error('Could not find source (src or href)', replaceString);
+			throw new Error('Could not findSource');
+		}
+		i += 5;
+	} else {
+		i += 4;
+	}
+	const spaceIndex = replaceString.indexOf(' ', i);
+	const bracketIndex = replaceString.indexOf('>', i);
+	const end = Math.min(spaceIndex, bracketIndex);
+	return replaceString.substring(i, end).replaceAll('"', '');
+}
+
 function readLog() {
 	let log = [];
 	try {
@@ -91,15 +110,21 @@ function buildHtml(htmlPath, jsPath) {
 	const jsReplaceString = findReplaceString(html, 'BUILD_JS:');
 	const cssReplaceString = findReplaceString(html, 'BUILD_CSS:');
 	html = html.replace(/<!--(.|\n)*?-->/g, ''); // Remove html comments
+	html = html.replaceAll('\t', '');
 	console.log('Removed comments:', html.length, 'characters');
 	const js = fs.readFileSync(jsPath);
 	if (jsReplaceString) {
 		html = html.replace(jsReplaceString, `<script>\n${js}\n</script>`);
 		console.log('Replaced', jsReplaceString, 'with', jsPath, ':', html.length, 'characters');
 	}
-	// TODO: cssReplaceString
-	// TODO: Remove tabs
-	// TODO: Remove line breaks
+	const cssPath = findSource(cssReplaceString);
+	const css = fs.readFileSync(cssPath);
+	if (cssReplaceString) {
+		const minCss = (new CleanCSS({ level: 2 }).minify(css)).styles;
+		html = html.replace(cssReplaceString, `<style>${minCss}</style>`);
+		console.log('Replaced', cssReplaceString, 'with', cssPath, ':', css.length, ' --> ', minCss.length, 'characters');
+	}
+	// TODO: Compress HTML (At least remove tabs, remove line breaks)
 	fs.writeFileSync(OUTPUT_HTML_PATH, html);
 }
 

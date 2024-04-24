@@ -1247,11 +1247,11 @@
   		});
   	});
   	// Create litter / stardust
-  	loop(300, (i) => {
+  	loop(200, (i) => {
   		W.billboard({
   			n: `litter${i}`,
   			g: 'system',
-  			...randCoords(RING_RADIUS * 2),
+  			...randCoords(RING_RADIUS * 1.5),
   			size: 1,
   			b: '555e',
   		});
@@ -1597,8 +1597,8 @@
   let textures = {};
   let parts = 0;
   const MAX_PARTS = 5;
-  const MAX_VEL = 1000;
-  const VEL_FRICTION = .2; // Friction per tick (0.016)
+  const MAX_VEL = 800;
+  const VEL_FRICTION = .25; // Friction per tick (0.016)
 
   const t = 1000 / 60;
   const camOffset = { back: -SHIP_SIZE * 5, up: SHIP_SIZE * 2, rx: 80, ry: 0, rz: 0 };
@@ -1608,25 +1608,35 @@
   const steer = { rx: -90, ry: 0, rz: 0 };
 
   const achievements = [
-  	'Check steering: [Tab] to toggle mouse-lock',
-  	'Scan: Hold [C]',
-  	'Thrusters: [W]',
-  	'Fire weapons: [Space] or [Click]',
+  	'Check steering: [Tab] to toggle mouse-lock', // 0
+  	'Scan: Hold [C]', // 1
+  	'Thrusters: [W]', // 2
+  	'Fire weapons: [Space] or [Click]', // 3
+  	'Klaxonian Ships Destroyed: {K} / {S}', // 4
+  	'Ring Repair Parts: {P} / {M}', // 5
   ].map((t) => ({ t, done: 0 }));
 
   function achieve(i) {
-  	if (achievements[i].done) return;
-  	achievements[i].done = 1;
-  	updateAchievements();
+  	if (i !== undefined) {
+  		if (achievements[i].done) return;
+  		achievements[i].done = 1;
+  	}
+  	const kills = sys.klaxShips.reduce((sum, k) => sum + (k.hp > 0 ? 0 : 1), 0);
+  	if (kills >= sys.klaxShips.length) achievements[4] =1;
+  	updateAchievements(kills);
   }
 
-  function updateAchievements() {
-  	const kills = sys.klaxShips.reduce((sum, k) => sum + (k.hp > 0 ? 0 : 1), 0);
+  function updateAchievements(kills) {
   	const html = achievements.map(
-  		({ t, done }) => `<li class="${ done ? 'done' : ''}">${t}</li>`,
-  	).join('')
-  		+ `<li>Klaxonian Ships Destroyed: ${kills} / ${sys.klaxShips.length}</li>`
-  		+ `<li>Ring Repair Parts: ${parts} / ${MAX_PARTS}</li>`;
+  		({ t, done }) => `<li class="${ done ? 'done' : ''}">${
+			t.replace('{K}', kills)
+				.replace('{S}', sys.klaxShips.length)
+				.replace('{P}', parts)
+				.replace('{M}', MAX_PARTS)
+		}</li>`,
+  	).join('');
+  		// + `<li>Klaxonian Ships Destroyed: ${kills} / ${sys.klaxShips.length}</li>`
+  		// + `<li>Ring Repair Parts: ${parts} / ${MAX_PARTS}</li>`;
   	$html('goals', html);
   }
 
@@ -1655,6 +1665,10 @@
   	// c.height = minDim * aspect;
   	// console.log(aspect, ogW, ogH, c.width, c.height);
   	// cam.aspect = aspect;
+  }
+
+  function dialog() {
+  	$id('dialog').classList.add('show');
   }
 
 
@@ -1704,7 +1718,8 @@
   		W$1.billboard({ n: `scan${i}`, g: 'system', x: k.x, y: k.y, z: k.z, size: 100, b: SCAN_COLOR });
   	});
 
-  	updateAchievements();
+  	achieve();
+  	dialog();
   }
 
   function thrust(o, amount = 0) {
@@ -1736,7 +1751,7 @@
   		if (b.hp <= 0) {
   			console.log('Destroy', b);
   			b.decay = 0;
-  			if (!isShipHurt) updateAchievements();
+  			if (!isShipHurt) achieve();
   		}
   		const vol = isShipHurt ? 1.1 : .5;
   		zzfx(...[vol,,416,.02,.21,.52,4,2.14,.2,,,,,1.7,,.9,,.44,.12,.23]);
@@ -1944,8 +1959,7 @@
   		spawnPlasma((click && click.right) ? 'photon' : 'plasma', ship, 'plasma', ['ship', 'plasma']);
   		ship.fireCooldown = 0.3;
   	}
-
-
+  	// Scan
   	if (down.c) achieve(1);
   	klaxShips.forEach((k, i) => {
   		W$1.move({ n: `scan${i}`, x: k.x, y: k.y, z: k.z, size: SCAN_SIZE,

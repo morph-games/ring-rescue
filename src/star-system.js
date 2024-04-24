@@ -209,11 +209,11 @@ export function makeStarSystem(Wparam, spaceSize) {
 		});
 	});
 	// Create litter / stardust
-	loop(300, (i) => {
+	loop(200, (i) => {
 		W.billboard({
 			n: `litter${i}`,
 			g: 'system',
-			...randCoords(RING_RADIUS * 2),
+			...randCoords(RING_RADIUS * 1.5),
 			size: 1,
 			b: '555e',
 		});
