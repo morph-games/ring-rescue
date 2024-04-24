@@ -12,7 +12,7 @@ function getXYCoordinatesFromPolar(angle, r) {
 	return { x, y };
 }
 
-function uid() { return String(Number(new Date())); }
+function uid() { return String(Number(new Date())) + randInt(999); }
 
 function rotateByDegree(v, o) {
 	return v.rotate(deg2rad(o.rx), deg2rad(o.ry), deg2rad(o.rz));

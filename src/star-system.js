@@ -33,7 +33,7 @@ const ship = {
 	rx: -90, ry: 0, rz: 0,
 	vel: { x: 0, y: 0, z: 0 },
 	thrust: { x: 0, y: 0, z: 0 },
-	thrustForce: 0.1,
+	thrustForce: 0.08,
 	fireCooldown: 0,
 	r: 2, // collision radius
 	passType: 'ship',
@@ -42,19 +42,22 @@ const ship = {
 	sight: 1500,
 	aggro: 0,
 	thrustCooldown: 0,
-	hp: 5,
+	hp: 6,
 	maxHp: 5,
 	facing: { x: 0, y: 1, z: 0 },
 	inv: { parts: 0 },
 	steerPercent: 0.05,
+	explodes: { colors: ['464040', '5796a1'], size: 1, count: 20 },
 };
 const klaxShip = {
 	...structuredClone(ship),
-	thrustForce: 0.005,
+	thrustForce: 0.008,
+	hp: 5,
 	passType: 'klaxShip',
 	passthru: ['klaxPlasma'],
 	facing: { x: 1, y: 0, z: 0 },
 	drops: ['parts'],
+	explodes: { colors: ['464040', '702782'], size: 5, count: 30 },
 };
 const klaxShips = [];
 const physicsEnts = [ship];
@@ -225,6 +228,7 @@ export function makeStarSystem(Wparam, spaceSize) {
 	});
 	// Create physical crates
 	loop(10, (i) => {
+		const b = pick(['de8b6f', '471b6e', '524bb3', '5796a1', '464040', '775b5b']);
 		const crate = {
 			n: `crate${i}`,
 			passType: 'crate',
@@ -234,13 +238,13 @@ export function makeStarSystem(Wparam, spaceSize) {
 			vel: { ...vec3() },
 			size: 20,
 			r: 20, // collision radius
-			b: pick(['de8b6f', '471b6e', '524bb3', '5796a1', '464040', '775b5b']),
+			b,
 			rx: rand(0, 359),
 			ry: rand(0, 359),
 			rz: rand(0, 359),
 			hp: 3,
 			drops: ['parts'],
-			// explodes: [{ b: 'de8b6f', size: 8, count: 3 }],
+			explodes: { colors: ['464040', b], size: 2, count: 10 },
 		};
 		physicsEnts.push(crate);
 		renderables[crate.n] = crate;

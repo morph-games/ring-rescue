@@ -42,15 +42,18 @@ export default {
 			move.x += e.movementX;
 			move.y += e.movementY;
 		};
+		const fkey = (e) => (e.key.length === 1) ? e.key.toLowerCase() : e.key;
 		onkeydown = (e) => {
-			this.down[e.key] = true;
-			if (!e.repeat && o.keys && o.keys[e.key]) {
-				o.keys[e.key]();
+			// treat all single keys as lowercase
+			const key = fkey(e);
+			this.down[key] = true;
+			if (!e.repeat && o.keys && o.keys[key]) {
+				o.keys[key]();
 				e.preventDefault();
 			}
 		};
 		onkeyup = (e) => {
-			this.down[e.key] = false;
+			this.down[fkey(e)] = false;
 		};
 		onwheel = (e) => {
 			this.wheel += e.deltaY;
