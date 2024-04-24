@@ -1,5 +1,5 @@
-import { makeStarCanvas, makeStarFieldCanvas } from './textures.js';
-import { getXYCoordinatesFromPolar, loop, rand } from './utils.js';
+import { makeStarCanvas, makeStarFieldCanvas, makeRabbit } from './textures.js';
+import { getXYCoordinatesFromPolar, loop, rand, pick } from './utils.js';
 import { vec3, rad2deg } from './Vector3.js';
 import { SUN_COLOR, P1_COLOR, P2_COLOR, SPACE_COLOR, SHIP_COLOR, SHIP_COLOR2,
 	FLAME_OFF_COLOR, KSHIP_COLOR1, KSHIP_COLOR2, KSHIP_COLOR3, RING_COLOR,
@@ -45,13 +45,16 @@ const ship = {
 	hp: 5,
 	maxHp: 5,
 	facing: { x: 0, y: 1, z: 0 },
+	inv: { parts: 0 },
+	steerPercent: 0.05,
 };
 const klaxShip = {
 	...structuredClone(ship),
-	thrustForce: 0.002,
+	thrustForce: 0.005,
 	passType: 'klaxShip',
 	passthru: ['klaxPlasma'],
 	facing: { x: 1, y: 0, z: 0 },
+	drops: ['parts'],
 };
 const klaxShips = [];
 const physicsEnts = [ship];
@@ -160,6 +163,7 @@ export function makeStarSystem(Wparam, spaceSize) {
 		W.longPyramid({ n: 'shipBase', g, size: SHIP_SIZE * .6, y: SHIP_SIZE * .6, b });
 		W.ufo({ n: 'shipBody', g, y: SHIP_SIZE * -.2, rx: 90, size: SHIP_SIZE * 1.3, b, s:1 });
 		W.ufo({ n: 'sCockpit', g, y: SHIP_SIZE * -.2, rx: 90, z: SHIP_SIZE * .4, size: SHIP_SIZE * .5, b: `666c`, s:1 });
+		// W.billboard({ n: 'pilot', g, y: SHIP_SIZE * -.2, z: SHIP_SIZE * .6, rx: 90, size: SHIP_SIZE * .4, t: makeRabbit(0) });
 		const component = { n: 'shipComp1', g, x: SHIP_SIZE * -.3, y: -SHIP_SIZE * .7, ry: 0, size: SHIP_SIZE * .4, b };
 		W.cube(component);
 		W.cube({ ...component, n: 'shipComp2', x: -component.x });
@@ -175,6 +179,7 @@ export function makeStarSystem(Wparam, spaceSize) {
 		const flame = { g, n: 'sFlame1', rx: 180, x: engX, y: SHIP_SIZE * -1.4, size: SHIP_SIZE * .26, b: FLAME_OFF_COLOR };
 		W.longPyramid(flame);
 		W.longPyramid({ ...flame, n: 'sFlame2', x: -engX });
+		
 		// addAxisCubes(g, 1);
 	}
 	
@@ -219,7 +224,7 @@ export function makeStarSystem(Wparam, spaceSize) {
 		});
 	});
 	// Create physical crates
-	loop(30, (i) => {
+	loop(10, (i) => {
 		const crate = {
 			n: `crate${i}`,
 			passType: 'crate',
@@ -227,13 +232,15 @@ export function makeStarSystem(Wparam, spaceSize) {
 			g: 'system',
 			...randCoords(RING_RADIUS * 1.5),
 			vel: { ...vec3() },
-			size: 3,
-			r: 2, // collision radius
-			b: 'de8b6f',
+			size: 20,
+			r: 20, // collision radius
+			b: pick(['de8b6f', '471b6e', '524bb3', '5796a1', '464040', '775b5b']),
 			rx: rand(0, 359),
 			ry: rand(0, 359),
 			rz: rand(0, 359),
 			hp: 3,
+			drops: ['parts'],
+			// explodes: [{ b: 'de8b6f', size: 8, count: 3 }],
 		};
 		physicsEnts.push(crate);
 		renderables[crate.n] = crate;

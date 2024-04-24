@@ -614,6 +614,8 @@
   		};
   		const handleClick = (e) => {
   			const { clientX, clientY, button } = e;
+  			const { key } = e.target.dataset;
+  			if (key && o.keys && o.keys[key]) o.keys[key]();
   			this.click = { clientX, clientY, button, left: button === 0, right: button === 2,
   				locked: isLocked(),
   			};
@@ -627,7 +629,7 @@
   const BG_COLOR = '2a242b';
   const SHIP_COLOR = '5796a1';
   const SHIP_COLOR2 = '8bc7bf';
-  const RING_COLOR = '5796a1';
+  const RING_COLOR = '#5796a1';
   const RING_COLOR2 = '478691';
   const P1_COLOR = '775b5b';
   const RED = '#b0455a';
@@ -953,10 +955,16 @@
   	rz += b.rz;
   	return { rx, ry, rz };
   }
+
+  const wait = (ms) => (new Promise((resolve) => setTimeout(resolve, ms)));
+
   // Some functions here from LittleJS utilities
   function clamp(value, min=0, max=1) { return value < min ? min : value > max ? max : value; }
   function lerp(percent, valueA, valueB) { return valueA + clamp(percent) * (valueB-valueA); }
   function rand(valueA=1, valueB=0) { return valueB + Math.random() * (valueA-valueB); }
+  function randInt(valueA, valueB=0) { return Math.floor(rand(valueA,valueB)); }
+
+  function pick(arr) { return arr[randInt(0, arr.length)];  }
 
   function makeCanvas(id, size) {
   	const existingElt = $id(id);
@@ -996,12 +1004,89 @@
   	return cElt;
   }
 
+  function makeRabbit(front) {
+  	const [cElt, c] = makeCanvas('rabbit' + front, 600);
+  	c.beginPath();
+  	c.moveTo(10, 600);
+  	const points = [
+  		[10, 600],
+  		[50, 550],
+  		[100, 520],
+  		[270, 480],
+  		[270, 450],
+  		// [100, 410, 0, 0, 100],
+  		// [80, 300],
+  	];
+  	points.forEach((pts) => c.lineTo(...pts));
+  	points.reverse().forEach(([x, y]) => c.lineTo(600 - x, y));
+  	c.fillStyle = RING_COLOR;
+  	c.fill();
+  	c.closePath();
+
+  	const e = (x, y, radiusX, radiusY, rot = 0, color = '#eee', opt = {}) => {
+  		c.beginPath();
+  		c.ellipse(x, y, radiusX, radiusY, rot, 0, TWO_PI);
+  		c.fillStyle = color;
+  		c.fill();
+  		if (opt.hook) opt.hook();
+  		c.closePath();
+  	};
+
+  	if (front) {
+  		// Neck
+  		e(300, 400, 100, 160, 0, '#8bc7bf');
+  	}
+  	// Head
+  	e(300, 300, 200, 70);
+  	e(300, 350, 250, 100);
+  	e(300, 410, 200, 60);
+  	// Ears
+  	e(150, 200, 200, 40, PI$1 * .4);
+  	e(450, 200, 200, 40, -PI$1 * .4);
+  	if (front) {
+  		// Eyes
+  		e(430, 320, 20, 30, 0, '#445');
+  		e(170, 320, 20, 30, 0, '#445');
+  		e(440, 290, 16, 40, PI$1 * -1.4, '#ccc');
+  		e(160, 290, 16, 40, PI$1 * 1.4, '#ccc');
+  		// Nose
+  		e(300, 350, 20, 10, 0, '#de8b6f');
+
+  		// Mouth
+  		c.beginPath();
+  		c.moveTo(300, 450);
+  		c.lineTo(150, 400);
+  		c.lineTo(450, 400);
+  		c.fillStyle = '#222';
+  		c.fill();
+  		c.closePath();
+  	}
+
+  	// helmet 
+  	const hook = () => {
+  		c.strokeStyle = '#8bc7bf';
+  		c.lineWidth = 10;
+  		c.stroke();
+  	};
+  	e(300, 320, 290, 180, 0, '#ffffff55', { hook });
+
+  	// $id('loaded').style.display = 'block';
+  	// cElt.style.position = 'absolute';
+  	// cElt.style.top = '0';
+  	// cElt.style.left = '0';
+  	// cElt.style.background = '#000';
+  	// cElt.style.zIndex = '99';
+  	return cElt;
+  }
+
   function makeTextures() {
   	return {
   		tf: makeStarCanvas(9, STAR_COLOR, 'tf', .3),
   		plasma: makeStarCanvas(11, PLASMA_COLOR1, 'plasma', .2),
   		photon: makeStarCanvas(13, PLASMA_COLOR2, 'photon', .5),
   		klaxPlasma: makeStarCanvas(15, PLASMA_COLOR3, 'klaxPlasma', .3),
+  		rabbit: makeRabbit(1),
+  		pilot: makeRabbit(0),
   	};
   }
 
@@ -1083,13 +1168,16 @@
   	hp: 5,
   	maxHp: 5,
   	facing: { x: 0, y: 1, z: 0 },
+  	inv: { parts: 0 },
+  	steerPercent: 0.05,
   };
   const klaxShip = {
   	...structuredClone(ship$1),
-  	thrustForce: 0.002,
+  	thrustForce: 0.005,
   	passType: 'klaxShip',
   	passthru: ['klaxPlasma'],
   	facing: { x: 1, y: 0, z: 0 },
+  	drops: ['parts'],
   };
   const klaxShips$1 = [];
   const physicsEnts$1 = [ship$1];
@@ -1198,6 +1286,7 @@
   		W.longPyramid({ n: 'shipBase', g, size: SHIP_SIZE * .6, y: SHIP_SIZE * .6, b });
   		W.ufo({ n: 'shipBody', g, y: SHIP_SIZE * -.2, rx: 90, size: SHIP_SIZE * 1.3, b, s:1 });
   		W.ufo({ n: 'sCockpit', g, y: SHIP_SIZE * -.2, rx: 90, z: SHIP_SIZE * .4, size: SHIP_SIZE * .5, b: `666c`, s:1 });
+  		// W.billboard({ n: 'pilot', g, y: SHIP_SIZE * -.2, z: SHIP_SIZE * .6, rx: 90, size: SHIP_SIZE * .4, t: makeRabbit(0) });
   		const component = { n: 'shipComp1', g, x: SHIP_SIZE * -.3, y: -SHIP_SIZE * .7, ry: 0, size: SHIP_SIZE * .4, b };
   		W.cube(component);
   		W.cube({ ...component, n: 'shipComp2', x: -component.x });
@@ -1213,6 +1302,7 @@
   		const flame = { g, n: 'sFlame1', rx: 180, x: engX, y: SHIP_SIZE * -1.4, size: SHIP_SIZE * .26, b: FLAME_OFF_COLOR };
   		W.longPyramid(flame);
   		W.longPyramid({ ...flame, n: 'sFlame2', x: -engX });
+  		
   		// addAxisCubes(g, 1);
   	}
   	
@@ -1257,7 +1347,7 @@
   		});
   	});
   	// Create physical crates
-  	loop(30, (i) => {
+  	loop(10, (i) => {
   		const crate = {
   			n: `crate${i}`,
   			passType: 'crate',
@@ -1265,13 +1355,15 @@
   			g: 'system',
   			...randCoords(RING_RADIUS * 1.5),
   			vel: { ...vec3() },
-  			size: 3,
-  			r: 2, // collision radius
-  			b: 'de8b6f',
+  			size: 20,
+  			r: 20, // collision radius
+  			b: pick(['de8b6f', '471b6e', '524bb3', '5796a1', '464040', '775b5b']),
   			rx: rand(0, 359),
   			ry: rand(0, 359),
   			rz: rand(0, 359),
   			hp: 3,
+  			drops: ['parts'],
+  			// explodes: [{ b: 'de8b6f', size: 8, count: 3 }],
   		};
   		physicsEnts$1.push(crate);
   		renderables$1[crate.n] = crate;
@@ -1590,15 +1682,19 @@
   const { min, max, PI, round, abs } = Math;
 
   const g = {
+  	W: W$1,
   	input,
   	paused: 0,
+  	nextEnter: 0,
+  	ogKlaxShipCount: 0,
   };
   let sys;
   let textures = {};
-  let parts = 0;
-  const MAX_PARTS = 5;
+  const MAX_PARTS = 7;
   const MAX_VEL = 800;
   const VEL_FRICTION = .25; // Friction per tick (0.016)
+
+  // const sun = { rx: 0, ry: 0, ry: 0 };
 
   const t = 1000 / 60;
   const camOffset = { back: -SHIP_SIZE * 5, up: SHIP_SIZE * 2, rx: 80, ry: 0, rz: 0 };
@@ -1610,10 +1706,11 @@
   const achievements = [
   	'Check steering: [Tab] to toggle mouse-lock', // 0
   	'Scan: Hold [C]', // 1
-  	'Thrusters: [W]', // 2
+  	'Thrusters: [W] and [S]', // 2
   	'Fire weapons: [Space] or [Click]', // 3
-  	'Klaxonian Ships Destroyed: {K} / {S}', // 4
-  	'Ring Repair Parts: {P} / {M}', // 5
+  	'Boost: Hold [Shift]', // 4
+  	'Klaxonian Ships Destroyed: {K} / {S}', // 5
+  	'Ring Repair Parts: {P} / {M}', // 6
   ].map((t) => ({ t, done: 0 }));
 
   function achieve(i) {
@@ -1621,22 +1718,25 @@
   		if (achievements[i].done) return;
   		achievements[i].done = 1;
   	}
-  	const kills = sys.klaxShips.reduce((sum, k) => sum + (k.hp > 0 ? 0 : 1), 0);
-  	if (kills >= sys.klaxShips.length) achievements[4] =1;
+  	const left = sys.klaxShips.filter((k) => k.hp > 0).length;
+  	const kills = g.ogKlaxShipCount - left;
+  	if (left === 0) achievements[5].done = 1;
+  	if ((ship.inv.parts || 0) >= MAX_PARTS) achievements[6].done = 1;
   	updateAchievements(kills);
+  	if (achievements.length === achievements.filter((a) => a.done).length) {
+  		dialog('You did it! With those parts we should be able to get the Ring powered up again.<p>Thank you!</p>');
+  	}
   }
 
   function updateAchievements(kills) {
   	const html = achievements.map(
   		({ t, done }) => `<li class="${ done ? 'done' : ''}">${
 			t.replace('{K}', kills)
-				.replace('{S}', sys.klaxShips.length)
-				.replace('{P}', parts)
+				.replace('{S}', g.ogKlaxShipCount)
+				.replace('{P}', ship.inv.parts || 0)
 				.replace('{M}', MAX_PARTS)
 		}</li>`,
   	).join('');
-  		// + `<li>Klaxonian Ships Destroyed: ${kills} / ${sys.klaxShips.length}</li>`
-  		// + `<li>Ring Repair Parts: ${parts} / ${MAX_PARTS}</li>`;
   	$html('goals', html);
   }
 
@@ -1645,6 +1745,21 @@
   	input.unlock();
   	$('main').classList.add('end');
   	$id('end').style.display = 'flex';
+  }
+
+  function title() {
+  	g.paused = 1;
+  	W$1.camera({ x: 0, y: 0, z: 0, rx: -13 });
+  	const s = $id('hi').style;
+  	s.display = 'flex';
+  	g.nextEnter = () => {
+  		s.display = 'none';
+  		return dialog(
+  			`<p>A Star-Hopper ship! You got our distress call? 📡 We're under attack by a Klaxonian fleet!</p>`
+  			+ `<p>The entire sector is dependent on the POWER generated by our Bunson Ring. ⚡`
+  			+ `Please rescue us and help get the Ring operational again.</p>`
+  		);
+  	};
   }
 
   function setupCanvasSize(c) {
@@ -1667,8 +1782,25 @@
   	// cam.aspect = aspect;
   }
 
-  function dialog() {
-  	$id('dialog').classList.add('show');
+  function dialog(text) {
+  	zzfx(...[2.36,0,130.8128,.02,.51,.2,,1.91,,,,,.08,,,,.04,.5,,.39]);
+  	g.paused = 1;
+  	const c = $id('dialog').classList;
+  	const s = $id('goals').style;
+  	s.opacity = '0';
+  	input.unlock();
+  	// console.log(textures.rabbit);
+  	$html('pic', `<img src="${textures.rabbit.toDataURL()}" />`);
+  	$html('txt', text + '<i data-key="Enter">Close [Enter]</i>');
+  	c.add('show');
+  	W$1.camera({ x: 0, y: 100, z: 0, a: 200 }, 500);
+  	g.W.move({ n: 'system', x: 1000, y: -500, z: -2500, a: 2000 }, 500);
+  	return g.nextEnter = () => {
+  		s.opacity = '1';
+  		c.remove('show');
+  		g.paused = 0;
+  		$('main').classList.remove('ui--off');
+  	};
   }
 
 
@@ -1681,9 +1813,10 @@
   			Tab: () => { achieve(0); input.toggleLock(); },
   			p: () => {
   				g.paused = !g.paused;
-  				console.log('p', g.paused);
   			},
-  			// w: shipThrust(1)
+  			Enter: () => {
+  				if (g.nextEnter) g.nextEnter = g.nextEnter();
+  			},
   		}
   	});
   	textures = makeTextures();
@@ -1717,9 +1850,8 @@
   	sys.klaxShips.forEach((k, i) => {
   		W$1.billboard({ n: `scan${i}`, g: 'system', x: k.x, y: k.y, z: k.z, size: 100, b: SCAN_COLOR });
   	});
-
+  	g.ogKlaxShipCount = sys.klaxShips.length;
   	achieve();
-  	dialog();
   }
 
   function thrust(o, amount = 0) {
@@ -1751,7 +1883,11 @@
   		if (b.hp <= 0) {
   			console.log('Destroy', b);
   			b.decay = 0;
-  			if (!isShipHurt) achieve();
+  			if (b.drops) {
+  				b.drops.forEach((drop) => ship.inv[drop] = (ship.inv[drop] || 0) + 1);
+  				console.log(ship.inv);
+  			}
+  			achieve();
   		}
   		const vol = isShipHurt ? 1.1 : .5;
   		zzfx(...[vol,,416,.02,.21,.52,4,2.14,.2,,,,,1.7,,.9,,.44,.12,.23]);
@@ -1827,8 +1963,9 @@
   	o[prop] = max(o[prop] - sec, 0);
   }
 
-  function steerRotation(o, steer, amount = 0.01) {
-  	['rx', 'ry', 'rz'].forEach((k) => o[k] = lerp(amount, o[k], steer[k]));
+  function steerRotation(o, steer) {
+  	const { steerPercent = 0.01 } = o;
+  	['rx', 'ry', 'rz'].forEach((k) => o[k] = lerp(steerPercent, o[k], steer[k]));
   }
 
   function updateShip(k, sec) {
@@ -1843,7 +1980,7 @@
   	if (!k.aggro) return;
   	// Aggro actions
   	const steer = pos.toWAngles(ship);
-  	steerRotation(k, steer, 0.02);
+  	steerRotation(k, steer);
   	// k.rx = lerp(0.01, k.rx, rx);
   	// k.ry = lerp(0.01, k.ry, ry);
   	// k.rz = lerp(0.01, k.rz, rz);
@@ -1856,7 +1993,7 @@
   	if (k.fireCooldown) {
   		cool(k, 'fireCooldown', sec);
   	} else {
-  		spawnPlasma('klaxPlasma', k, 'klaxPlasma', ['klaxShip', 'klaxPlasma']);
+  		spawnPlasma('klaxPlasma', k, 'klaxPlasma', ['klaxShip', 'klaxPlasma', 'plasma']);
   		k.fireCooldown = rand(0.3, 3);
   	}
   }
@@ -1928,6 +2065,7 @@
   	if (down.p) return;
   	const boost = down.Shift ? 2 : 1;
   	let thrustAmount = 0; 
+  	if (boost > 1) achieve(4);
   	if (down.s || down.S) {
   		thrustAmount = ship.thrustForce * boost * -.5;
   		down.w = 0;
@@ -1956,7 +2094,7 @@
   		down[' '] || (click && click.locked)
   	)) {
   		achieve(3);
-  		spawnPlasma((click && click.right) ? 'photon' : 'plasma', ship, 'plasma', ['ship', 'plasma']);
+  		spawnPlasma((click && click.right) ? 'photon' : 'plasma', ship, 'plasma', ['ship', 'plasma', 'klaxPlasma']);
   		ship.fireCooldown = 0.3;
   	}
   	// Scan
@@ -1986,13 +2124,14 @@
   	
   	// Do steering
   	{
+  		// const { ry, rx } = steer;
   		const lockMove = input.getLockMove();
   		// if (lockMove.x || lockMove.y) console.log(lockMove);
   		steer.ry -= lockMove.x / 10;
   		steer.rx = min(max(steer.rx - lockMove.y / 10, STEER_X_MIN), STEER_X_MAX);
   		// steer.rz += down.a ? -2 : (down.d ? 2 : 0);
   		// console.log({ ...steer });
-  		steerRotation(ship, steer, 0.05);
+  		steerRotation(ship, steer);
   	}
   	{
   		const unit = rotateByDegree(vec3(0, camOffset.back, camOffset.up), steer);
@@ -2043,8 +2182,12 @@
   	updateUI();
   }
 
-  addEventListener('DOMContentLoaded', () => {
+  addEventListener('DOMContentLoaded', async () => {
   	setup();
+  	await wait(30);
+  	update();
+  	await wait(30);
+  	title();
   	setInterval(update, t);
   });
 

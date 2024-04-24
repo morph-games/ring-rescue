@@ -57,6 +57,8 @@ export default {
 		};
 		const handleClick = (e) => {
 			const { clientX, clientY, button } = e;
+			const { key } = e.target.dataset;
+			if (key && o.keys && o.keys[key]) o.keys[key]();
 			this.click = { clientX, clientY, button, left: button === 0, right: button === 2,
 				locked: isLocked(),
 			};

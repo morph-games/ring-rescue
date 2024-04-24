@@ -30,10 +30,16 @@ function addAngles(a, b) {
 	rz += b.rz;
 	return { rx, ry, rz };
 }
+
+const wait = (ms) => (new Promise((resolve) => setTimeout(resolve, ms)));
+
 // Some functions here from LittleJS utilities
 function clamp(value, min=0, max=1) { return value < min ? min : value > max ? max : value; }
 function lerp(percent, valueA, valueB) { return valueA + clamp(percent) * (valueB-valueA); }
 function rand(valueA=1, valueB=0) { return valueB + Math.random() * (valueA-valueB); }
+function randInt(valueA, valueB=0) { return Math.floor(rand(valueA,valueB)); }
+
+function pick(arr) { return arr[randInt(0, arr.length)];  }
 export {
 	loop, sin, cos,
 	PI, TWO_PI, getXYCoordinatesFromPolar,
@@ -44,4 +50,7 @@ export {
 	clamp,
 	lerp,
 	rand,
+	randInt,
+	pick,
+	wait,
 };
