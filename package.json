@@ -1,7 +1,7 @@
 {
-  "name": "spaceship-ring-world",
+  "name": "star-hopper-ring-rescue",
   "version": "1.0.0",
-  "description": "",
+  "description": "A tiny spaceship combat game in Javascript using WebGL",
   "main": "index.js",
   "type": "module",
   "scripts": {

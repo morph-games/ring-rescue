@@ -44,7 +44,7 @@ const ship = {
 	thrustCooldown: 0,
 	trailCooldown: 0,
 	hp: 9,
-	// maxHp: 10,
+	maxHp: 9,
 	power: 100,
 	maxPower: 100,
 	recharge: .2,
@@ -52,7 +52,7 @@ const ship = {
 	shieldPower: 100,
 	enginePowerUsage: .4,
 	shields: 0,
-	shieldsDecayAmount: .5,
+	shieldsDecayAmount: .4,
 	p: PHYSICS_COLLIDABLE, // is a physics object
 	ignition: 0, // size of ignite billboard
 	ignitionSize: .2,

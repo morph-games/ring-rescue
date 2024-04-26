@@ -31,15 +31,15 @@ i:hover {
 /* canvas { image-rendering: pixelated; } */
 #goals, #si {
 	position: absolute;
-	top: 0;
-	right: 1.5vmin;
+	top: 1vh;
+	right: calc(1.5vmin + 2vw);
 	list-style-type: square;
 	text-align: left;
 	transition: 2s all;
 }
 #si {
 	right: unset;
-	left: 1.5vmin;
+	left: calc(1.5vmin + 2vw);
 	color: #8bc7bf;
 	font-family: 'Courier New', Courier, monospace;
 }

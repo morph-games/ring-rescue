@@ -14,7 +14,7 @@ import { getDirectionUnit, loop, clamp, lerp, rotateByDegree, addAngles, uid,
 	rand, pick, wait
 } from './utils.js';
 
-const { min, max, PI, round, abs } = Math;
+const { min, max, PI, round, abs, floor } = Math;
 
 const g = {
 	W,
@@ -244,7 +244,7 @@ function dmg(a, b) { // a = attacker, b = defender
 		const isShipHurt = (b === ship)
 		const shieldPercent = clamp(b.shields / 100, 0, 1);
 		b.hp -= (a.damage * (1 - shieldPercent));
-		console.log('Shield %', shieldPercent, '\n', b);
+		// console.log('Shield %', shieldPercent, '\n', b);
 		if (a.destroyOnDamage) a.decay = 0;
 		if (b.hp <= 0) {
 			// console.log('Destroy', b.n);
@@ -448,17 +448,24 @@ function spawnTrail(o, sec) {
 	W.billboard({ ...trail });
 }
 
+function htmlLine(n, m) {
+	let h = '';
+	loop(Math.floor((n/m) * 10), () => h += '-');
+	return h;
+}
+
 function updateUI() {
 	const v = vec3(ship.vel);
 	const dir = (v.x > v.y && v.x > v.z) ? 'X' : (
 		(v.y > v.x && v.y > v.z) ? 'Y' : 'Z'
 	);
+	const spd = v.length();
 	const html = (g.paused ? '<b>Paused</b>' : '') + '<b>' + [
-		`Velocity: ${round(v.length())} (${dir})`,
-		`Pitch: ${round(steer.rx + 90)}, Yaw: ${round(steer.ry) % 360}`,
-		`Power: ${Math.floor(ship.power)}`,
-		`Shields: ${Math.floor(ship.shields)}`,
-		`Hull: ${Math.floor(ship.hp * 10) / 10}`,
+		`Velocity: ${round(spd)} (${dir}) ${htmlLine(spd, MAX_VEL)}`,
+		// `Pitch: ${round(steer.rx + 90)}, Yaw: ${round(steer.ry) % 360}`,
+		`Power: ${floor(ship.power)} ${htmlLine(ship.power, ship.maxPower)}`,
+		`Shields: ${floor(ship.shields)} ${htmlLine(ship.shields, 100)}`,
+		`Hull: ${floor(ship.hp * 10) / 10} ${htmlLine(ship.hp, ship.maxHp)}`,
 	].join('</b><b>') + '</b>';
 	$html('si', html);
 }
