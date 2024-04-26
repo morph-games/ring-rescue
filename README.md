@@ -14,3 +14,4 @@ Controls:
 * <kbd>-</kbd>, <kbd>+</kbd> (<kbd>=</kbd>), Mouse wheel - Adjust Zoom
 * <kbd>[</kbd>, <kbd>]</kbd> - Adjust FOV
 * <kbd>p</kbd> - Pause
+* <kbd>t</kbd> - Toggle Trails on/off

@@ -47,21 +47,33 @@
         t$1 = W$1.gl.createShader(35633 /* VERTEX_SHADER */),
         
         `#version 300 es
-      precision highp float;                        // Set default float precision
-      in vec4 pos, col, uv, normal;                 // Vertex attributes: position, color, texture coordinates, normal (if any)
-      uniform mat4 pv, eye, m, im;                  // Uniform transformation matrices: projection * view, eye, model, inverse model
-      uniform vec4 bb;                              // If the current shape is a billboard: bb = [w, h, 1.0, 0.0]
-      out vec4 v_pos, v_col, v_uv, v_normal;        // Varyings sent to the fragment shader: position, color, texture coordinates, normal (if any)
-      void main() {                                 
-        gl_Position = pv * (                        // Set vertex position: p * v * v_pos
-          v_pos = bb.z > 0.                         // Set v_pos varying:
-          ? m[3] + eye * (pos * bb)                 // Billboards always face the camera:  p * v * distance + eye * (position * [w, h, 1.0, 0.0])
-          : m * pos                                 // Other objects rotate normally:      p * v * m * position
-        );                                          
-        v_col = col;                                // Set varyings 
+      precision highp float;
+      in vec4 pos, col, uv, normal;
+      uniform mat4 pv, eye, m, im;
+      uniform vec4 bb;
+      out vec4 v_pos, v_col, v_uv, v_normal;
+      void main() {
+        gl_Position = pv * (v_pos = bb.z > 0. ? m[3] + eye * (pos * bb) : m * pos);                                          
+        v_col = col;
         v_uv = uv;
-        v_normal = transpose(inverse(m)) * normal;  // recompute normals to match model thansformation
+        v_normal = transpose(inverse(m)) * normal;
       }`
+        // `#version 300 es
+        // precision highp float;                        // Set default float precision
+        // in vec4 pos, col, uv, normal;                 // Vertex attributes: position, color, texture coordinates, normal (if any)
+        // uniform mat4 pv, eye, m, im;                  // Uniform transformation matrices: projection * view, eye, model, inverse model
+        // uniform vec4 bb;                              // If the current shape is a billboard: bb = [w, h, 1.0, 0.0]
+        // out vec4 v_pos, v_col, v_uv, v_normal;        // Varyings sent to the fragment shader: position, color, texture coordinates, normal (if any)
+        // void main() {                                 
+        //   gl_Position = pv * (                        // Set vertex position: p * v * v_pos
+        //     v_pos = bb.z > 0.                         // Set v_pos varying:
+        //     ? m[3] + eye * (pos * bb)                 // Billboards always face the camera:  p * v * distance + eye * (position * [w, h, 1.0, 0.0])
+        //     : m * pos                                 // Other objects rotate normally:      p * v * m * position
+        //   );                                          
+        //   v_col = col;                                // Set varyings 
+        //   v_uv = uv;
+        //   v_normal = transpose(inverse(m)) * normal;  // recompute normals to match model thansformation
+        // }`
       );
       
       // Compile the Vertex shader and attach it to the program
@@ -76,28 +88,44 @@
         t$1 = W$1.gl.createShader(35632 /* FRAGMENT_SHADER */),
         
         `#version 300 es
-      precision highp float;                  // Set default float precision
-      in vec4 v_pos, v_col, v_uv, v_normal;   // Varyings received from the vertex shader: position, color, texture coordinates, normal (if any)
-      uniform vec3 light;                     // Uniform: light direction, smooth normals enabled
-      uniform vec4 o;                         // options [smooth, shading enabled, ambient, mix]
-      uniform sampler2D sampler;              // Uniform: 2D texture
-      out vec4 c;                             // Output: final fragment color
-
-      // The code below displays colored / textured / shaded fragments
+      precision highp float;
+      in vec4 v_pos, v_col, v_uv, v_normal;
+      uniform vec3 light;
+      uniform vec4 o;
+      uniform sampler2D sampler;
+      out vec4 c;
       void main() {
-        c = mix(texture(sampler, v_uv.xy), v_col, o[3]);  // base color (mix of texture and rgba)
-        if(o[1] > 0.){                                    // if lighting/shading is enabled:
-          c = vec4(                                       // output = vec4(base color RGB * (directional shading + ambient light)), base color Alpha
-            c.rgb * (max(0., dot(light, -normalize(       // Directional shading: compute dot product of light direction and normal (0 if negative)
-              o[0] > 0.                                   // if smooth shading is enabled:
-              ? vec3(v_normal.xyz)                        // use smooth normals passed as varying
-              : cross(dFdx(v_pos.xyz), dFdy(v_pos.xyz))   // else, compute flat normal by making a cross-product with the current fragment and its x/y neighbours
-            )))
-            + o[2]),                                      // add ambient light passed as uniform
-            c.a                                           // use base color's alpha
+        c = mix(texture(sampler, v_uv.xy), v_col, o[3]);
+        if(o[1] > 0.){
+          c = vec4(c.rgb * (max(0., dot(light, -normalize(o[0] > 0. ? vec3(v_normal.xyz) : cross(dFdx(v_pos.xyz), dFdy(v_pos.xyz)))))
+            + o[2]),
+            c.a
           );
         }
       }`
+        // `#version 300 es
+        // precision highp float;                  // Set default float precision
+        // in vec4 v_pos, v_col, v_uv, v_normal;   // Varyings received from the vertex shader: position, color, texture coordinates, normal (if any)
+        // uniform vec3 light;                     // Uniform: light direction, smooth normals enabled
+        // uniform vec4 o;                         // options [smooth, shading enabled, ambient, mix]
+        // uniform sampler2D sampler;              // Uniform: 2D texture
+        // out vec4 c;                             // Output: final fragment color
+
+        // // The code below displays colored / textured / shaded fragments
+        // void main() {
+        //   c = mix(texture(sampler, v_uv.xy), v_col, o[3]);  // base color (mix of texture and rgba)
+        //   if(o[1] > 0.){                                    // if lighting/shading is enabled:
+        //     c = vec4(                                       // output = vec4(base color RGB * (directional shading + ambient light)), base color Alpha
+        //       c.rgb * (max(0., dot(light, -normalize(       // Directional shading: compute dot product of light direction and normal (0 if negative)
+        //         o[0] > 0.                                   // if smooth shading is enabled:
+        //         ? vec3(v_normal.xyz)                        // use smooth normals passed as varying
+        //         : cross(dFdx(v_pos.xyz), dFdy(v_pos.xyz))   // else, compute flat normal by making a cross-product with the current fragment and its x/y neighbours
+        //       )))
+        //       + o[2]),                                      // add ambient light passed as uniform
+        //       c.a                                           // use base color's alpha
+        //     );
+        //   }
+        // }`
       );
       
       // Compile the Fragment shader and attach it to the program
@@ -228,7 +256,7 @@
       // Loop and measure time delta between frames
       dt = now - W$1.lastFrame;
       W$1.lastFrame = now;
-      requestAnimationFrame(W$1.draw);
+     requestAnimationFrame(W$1.draw);
       
       if(W$1.next.camera.g){
         W$1.render(W$1.next[W$1.next.camera.g], dt, 1);
@@ -314,7 +342,6 @@
     
     // Render an object
     render: (object, dt, just_compute = ['camera','light','group'].includes(object.type), buffer) => {
-
       // If the object has a texture
       if(object.t) {
 
@@ -357,7 +384,6 @@
       
       // Don't render invisible items (camera, light, groups, camera's parent)
       if(!just_compute){
-        
         // Set up the position buffer
         W$1.gl.bindBuffer(34962 /* ARRAY_BUFFER */, W$1.models[object.type].verticesBuffer);
         W$1.gl.vertexAttribPointer(buffer = W$1.gl.getAttribLocation(W$1.program, 'pos'), 3, 5126 /* FLOAT */, false, 0, 0);
@@ -630,8 +656,8 @@
 
   // + https://lospec.com/palette-list/moondrom
   const BG_COLOR = '2a242b';
-  const SHIP_COLOR = '5796a1';
-  const SHIP_COLOR2 = '8bc7bf';
+  const SHIP_COLOR = '#5796a1';
+  const SHIP_COLOR2 = '#8bc7bf';
   const RING_COLOR = '#5796a1';
   const RING_COLOR2 = '478691';
   const P1_COLOR = '775b5b';
@@ -992,19 +1018,38 @@
   function makeStarCanvas(points = 4, color = '#f00', id, depth = .4, size = 600) {
   	const [cElt, c, h] = makeCanvas(id, size);
   	c.clearRect(0, 0, size, size);
-  	c.beginPath();
+  	const arr = [];
   	const a = TWO_PI / points;
   	const line = (a, r) => {
   		const { x, y } = getXYCoordinatesFromPolar(a, r);
-  		c.lineTo(h + x, h + y);
+  		arr.push([h + x, h + y]);
   	};
   	loop(points, (i) => {
   		line(a * i, h);
   		line(a * i + (a / 2), h * depth);
   	});
-  	c.fillStyle = color;
-  	c.fill();
+  	path(c, arr, color);
   	return cElt;
+  }
+
+  function path(c, arr, fillStyle, strokeArr) {
+  	c.beginPath();
+  	if (typeof arr === 'function') {
+  		arr();
+  	} else {
+  		c.moveTo(...arr[0]);
+  		arr.forEach((pts) => c.lineTo(...pts));
+  	}
+  	if (fillStyle) {
+  		c.fillStyle = fillStyle;
+  		c.fill();
+  	}
+  	if (strokeArr) {
+  		c.strokeStyle = strokeArr[0]; // '#8bc7bf';
+  		c.lineWidth = strokeArr[1];
+  		c.stroke();
+  	}
+  	c.closePath();
   }
 
   function makeRabbit(front) {
@@ -1026,13 +1071,10 @@
   	c.fill();
   	c.closePath();
 
-  	const e = (x, y, radiusX, radiusY, rot = 0, color = '#eee', opt = {}) => {
-  		c.beginPath();
-  		c.ellipse(x, y, radiusX, radiusY, rot, 0, TWO_PI);
-  		c.fillStyle = color;
-  		c.fill();
-  		if (opt.hook) opt.hook();
-  		c.closePath();
+  	const e = (x, y, radiusX, radiusY, rot = 0, color = '#eee', strokeArr) => {
+  		path(c, () => {
+  			c.ellipse(x, y, radiusX, radiusY, rot, 0, TWO_PI);
+  		}, color, strokeArr);
   	};
 
   	if (front) {
@@ -1056,22 +1098,11 @@
   		e(300, 350, 20, 10, 0, '#de8b6f');
 
   		// Mouth
-  		c.beginPath();
-  		c.moveTo(300, 450);
-  		c.lineTo(150, 400);
-  		c.lineTo(450, 400);
-  		c.fillStyle = '#222';
-  		c.fill();
-  		c.closePath();
+  		path(c, [[300, 450], [150, 400], [450, 400]], '#222');
   	}
 
   	// helmet 
-  	const hook = () => {
-  		c.strokeStyle = '#8bc7bf';
-  		c.lineWidth = 10;
-  		c.stroke();
-  	};
-  	e(300, 320, 290, 180, 0, '#ffffff55', { hook });
+  	e(300, 320, 290, 180, 0, '#ffffff55', ['#8bc7bf', 10]);
 
   	// $id('loaded').style.display = 'block';
   	// cElt.style.position = 'absolute';
@@ -1082,6 +1113,23 @@
   	return cElt;
   }
 
+  function makeHopArmor(c1, c2) {
+  	const [cElt, c] = makeCanvas(`hopArmor${c1}${c2}`, 50);
+  	path(c, [[0,0], [0,50], [50,50], [50,0], [0,0]], c1, [c2, 6]);
+  	path(c, [[10, 0], [10, 10], [40, 10], [40, 0]], null, [c2, 2]);
+  	path(c, [[0, 30], [20, 30], [20, 40], [50, 40]], null, [c2, 2]);
+  	return cElt;
+  }
+
+  // function makeCircle(color) {
+  // 	const [cElt, c] = makeCanvas(`circle${color}`, 400);
+  // 	path(c, () => {
+  // 		c.arc(200, 200, 190, 0, TWO_PI);
+  // 		// c.ellipse(200, 200, 190, 190, 0, 0, TWO_PI);
+  // 	}, '#000', [color, 10]);
+  // 	return cElt;
+  // }
+
   function makeTextures() {
   	return {
   		tf: makeStarCanvas(9, STAR_COLOR, 'tf', .3),
@@ -1090,6 +1138,7 @@
   		klaxPlasma: makeStarCanvas(15, PLASMA_COLOR3, 'klaxPlasma', .3),
   		rabbit: makeRabbit(1),
   		pilot: makeRabbit(0),
+  		scan: makeStarCanvas(8, PLASMA_COLOR3, 'scan', 1),
   	};
   }
 
@@ -1102,7 +1151,7 @@
   const RING_RADIUS = 2000;
   const FAR = 30000;
   const SPACE_SIZE = FAR / 2; // The "radius" of the world
-  const SCAN_SIZE = 100;
+  const SCAN_SIZE = 120;
 
   // From LittleJS
   // https://github.com/KilledByAPixel/LittleJS/blob/main/build/littlejs.esm.js#L625C1-L657C2
@@ -1143,6 +1192,7 @@
   let W;
   let spin = 0;
 
+  const PHYSICS_COLLIDABLE$1 = 1;
   const KLAX_COUNT = 6;
   const seed = 1234;
   const gen = new RandomGenerator(seed);
@@ -1154,26 +1204,43 @@
   	z: randCoord(n),
   });
 
+  // function addAxisCubes(g, size) {
+  // 	W.cube({ n: g + 'axisX', g, x: size + 1, size, b: 'a008' });
+  // 	W.cube({ n: g + 'axisY', g, y: size + 1, size, b: '0a08' });
+  // 	W.cube({ n: g + 'axisZ', g, z: size + 1, size, b: '00a8' });
+  // }
+
   const ship$1 = {
   	x: 0, y: 0, z: SPACE_SIZE * .5,
   	rx: -90, ry: 0, rz: 0,
   	vel: { x: 0, y: 0, z: 0 },
   	thrust: { x: 0, y: 0, z: 0 },
-  	thrustForce: 0.08,
+  	thrustForce: 0.06,
   	fireCooldown: 0,
   	r: 2, // collision radius
   	passType: 'ship',
   	passthru: ['plasma'],
-  	shieldOpacity: 0,
   	sight: 1500,
   	aggro: 0,
   	thrustCooldown: 0,
-  	hp: 6,
-  	maxHp: 5,
+  	trailCooldown: 0,
+  	hp: 9,
+  	// maxHp: 10,
+  	power: 100,
+  	maxPower: 100,
+  	recharge: .2,
+  	weaponPowerUsage: 6,
+  	shieldPower: 100,
+  	enginePowerUsage: .4,
+  	shields: 0,
+  	shieldsDecayAmount: .5,
+  	p: PHYSICS_COLLIDABLE$1, // is a physics object
+  	ignition: 0, // size of ignite billboard
+  	ignitionSize: .2,
   	facing: { x: 0, y: 1, z: 0 },
   	inv: { parts: 0 },
   	steerPercent: 0.05,
-  	explodes: { colors: ['464040', '5796a1'], size: 1, count: 20 },
+  	explodes: { colors: ['464040', '5796a1'], size: 1, count: 16 },
   };
   const klaxShip = {
   	...structuredClone(ship$1),
@@ -1183,12 +1250,10 @@
   	passthru: ['klaxPlasma'],
   	facing: { x: 1, y: 0, z: 0 },
   	drops: ['parts'],
-  	explodes: { colors: ['464040', '702782'], size: 5, count: 30 },
+  	explodes: { colors: ['464040', '702782'], size: 5, count: 16 },
+  	isKlax: 1,
   };
-  const klaxShips$1 = [];
-  const physicsEnts$1 = [ship$1];
   const renderables$1 = {};
-  const groups = {};
 
   function makeKlaxShip(i) {
   	const n = `k${i}`;
@@ -1203,7 +1268,6 @@
   		...structuredClone(klaxShip),
   		...pos, size: 5, r: 10,
   		isGroup: 1, // Identify this as a group in renderables
-  		// rx, ry, rz,
   	};
   	// console.log(k);
   	W.group({ n, g: 'system', ...pos });
@@ -1219,28 +1283,24 @@
   		// 	rx: rand(-10, 10), ry: rand(-10, 10), b: KSHIP_COLOR2 });
   	});
   	W.pyramid({ n: n + 'nose', rz: -90, g, size: 1.5, b: KSHIP_COLOR3 });
-  	
-  	W.longRect({ ...strut, n: n + 'wing1', y: 2, rx: 90, ry: 45, rz: -45, });
-  	W.longRect({ ...strut, n: n + 'wing2', y: 2, x: 1.5, rx: 90, ry: 45, rz: 45, b });
-  	W.longRect({ ...strut, n: n + 'wing3', y: -2, rx: 90, ry: 45, rz: 45, });
-  	W.longRect({ ...strut, n: n + 'wing4', y: -2, x: 1.5, rx: 90, ry: 45, rz: -45, b });
-  	W.sphere({ n: n + 'shield', g, size: 10, b: 'ebd69404' });
-  	// W.billboard({ n: n + 'tracker', g, size: 100, b: 'ff0' });
+  	const arm = (i, o) => W.longRect({ ...strut, n: n + 'wing' + i, ...o });
+  	arm(1, { y: 2, rx: 90, ry: 45, rz: -45, });
+  	arm(2, { y: 2, x: 1.5, rx: 90, ry: 45, rz: 45, b });
+  	arm(3, { y: -2, rx: 90, ry: 45, rz: 45, });
+  	arm(4, { y: -2, x: 1.5, rx: 90, ry: 45, rz: -45, b });
+  	W.simpleSphere({ n: n + 'shield', g, size: 10, b: 'ebd69404' });
   	// addAxisCubes(g, 4);
-  	
-  	physicsEnts$1.push(k);
   	renderables$1[k.n] = k;
-  	klaxShips$1.push(k);
   }
 
-  function makeStarSystem(Wparam, spaceSize) {
+  function makeStarSystem(Wparam, spaceSize, textures) {
   	W = Wparam;
   	// Groups and objects
   	const addGroup = (n, g) => {
   		const o = { n, rx: 0, ry: 0, rz: 0 };
   		if (g) o.g = g;
   		W.group(o);
-  		groups[n] = o;
+  		// groups[n] = o;
   	};
   	addGroup('system');
   	['sun', 'ring', 'p1', 'p2', 'p3', 'a1', 'a2', 'a3'].forEach((n) => addGroup(n, 'system'));
@@ -1248,12 +1308,6 @@
 
   	const sunFlare = makeStarCanvas(16, `${SUN_COLOR}88`, 'sun', .7);
 
-  	// W.sphere({ n: 'outerSun', g: 'sun', size: 500, b: `${SUN_COLOR}88` });
-  	// W.sphere({ n: 'innerSun', g: 'sun', size: 480, b: SUN_COLOR });
-  	// W.billboard({ n: 'sunFlare', g: 'sun', size: 640, b: SUN_COLOR, t: sunFlare });
-  	// W.sphere({ n: 'planet1', g: 'p1', ...getXYCoordinatesFromPolar(0.5, 3000), size: 200, b: P1_COLOR, s:1 });
-  	// W.sphere({ n: 'planet2', g: 'p2', ...getXYCoordinatesFromPolar(0.7, 4000), size: 120, b: P2_COLOR, s:1 });
-  	// W.sphere({ n: 'planet3', g: 'p3', ...getXYCoordinatesFromPolar(0.7, 7000), size: 80, b: P1_COLOR, s:1 });
 
   	const shape = 'sphere';
   	const asteroid = { shape: 'simpleSphere', b: P1_COLOR };
@@ -1288,26 +1342,34 @@
   	}
   	{ // Build the Player's Ship
   		const b = SHIP_COLOR;
+  		const engT = makeHopArmor(SHIP_COLOR2, '#7bb7af');
+  		const t = makeHopArmor(b, '#478691');
   		const g = 'ship';
-  		W.longPyramid({ n: 'shipBase', g, size: SHIP_SIZE * .6, y: SHIP_SIZE * .6, b });
+  		W.longPyramid({ n: 'shipBase', g, size: SHIP_SIZE * .6, y: SHIP_SIZE * .6, b, t });
   		W.ufo({ n: 'shipBody', g, y: SHIP_SIZE * -.2, rx: 90, size: SHIP_SIZE * 1.3, b, s:1 });
   		W.ufo({ n: 'sCockpit', g, y: SHIP_SIZE * -.2, rx: 90, z: SHIP_SIZE * .4, size: SHIP_SIZE * .5, b: `666c`, s:1 });
   		// W.billboard({ n: 'pilot', g, y: SHIP_SIZE * -.2, z: SHIP_SIZE * .6, rx: 90, size: SHIP_SIZE * .4, t: makeRabbit(0) });
-  		const component = { n: 'shipComp1', g, x: SHIP_SIZE * -.3, y: -SHIP_SIZE * .7, ry: 0, size: SHIP_SIZE * .4, b };
+  		const component = { n: 'shipComp1', g, x: SHIP_SIZE * -.3, y: -SHIP_SIZE * .7, ry: 0, rz: -90, size: SHIP_SIZE * .4, b, t };
   		W.cube(component);
-  		W.cube({ ...component, n: 'shipComp2', x: -component.x });
+  		W.cube({ ...component, n: 'shipComp2', rz: 90, x: -component.x });
   		const engX = SHIP_SIZE * 1.1;
-  		const eng = { n: 'shipEngine1', g, ry: 45, rx: 90, x: engX, y: SHIP_SIZE * -.3, size: SHIP_SIZE, b: SHIP_COLOR2 };
+  		const eng = { n: 'shipEngine1', g, ry: 45, rx: 90, x: engX, y: SHIP_SIZE * -.3, size: SHIP_SIZE, b: SHIP_COLOR2, t: engT };
   		W.longerRect(eng);
-  		W.longerRect({ ...eng, n: 'shipEngine2', x: -engX });
+  		W.longerRect({ ...eng, n: 'shipEngine2', rz: 180, x: -engX });
   		const engBack = { n: 'shipEngineBack1', g,  x: engX, y: SHIP_SIZE * -1, size: SHIP_SIZE / 3, b }; 
   		W.longPyramid(engBack);
   		W.longPyramid({ ...engBack, n: 'shipEngineBack2', x: -engX });
-  		const wing = { n: 'sWing1', g, rx: 90, ry: 90, x: -SHIP_SIZE * 0, y: SHIP_SIZE * -.3, z: SHIP_SIZE * 0, size: SHIP_SIZE * .1, b };
+  		const wing = { n: 'sWing1', g, rx: 90, ry: 90, x: -SHIP_SIZE * 0, y: SHIP_SIZE * -.3, z: SHIP_SIZE * 0, size: SHIP_SIZE * .1, b, t };
   		W.plank(wing);
   		const flame = { g, n: 'sFlame1', rx: 180, x: engX, y: SHIP_SIZE * -1.4, size: SHIP_SIZE * .26, b: FLAME_OFF_COLOR };
   		W.longPyramid(flame);
   		W.longPyramid({ ...flame, n: 'sFlame2', x: -engX });
+  		const ignite = { g, y: SHIP_SIZE * -1.31, rx: 70, size: .2, t: textures.tf };
+  		W.billboard({ ...ignite, n: 'sIgnite1', x: -SHIP_SIZE * 1.1  });
+  		W.billboard({ ...ignite, n: 'sIgnite2', x: SHIP_SIZE * 1.1 });
+  		// W.billboard({ ...ignite, n: 'sIgniteBack0', x: -SHIP_SIZE * 1.1, y: SHIP_SIZE * .6 });
+  		// W.billboard({ ...ignite, n: 'sIgniteBack1', x: SHIP_SIZE * 1.1, y: SHIP_SIZE * .6 });
+  		W.simpleSphere({ n: 'sShield', g, size: 1.2, b: 'de8b6f00', mode: 2, size: 0.01 });
   		
   		// addAxisCubes(g, 1);
   	}
@@ -1317,43 +1379,44 @@
   	const TWO_PI = Math.PI * 2;
   	loop(32, (i, n) => {
   		const angle = i === 0 ? 0 : (TWO_PI * i) / n;
-  		const deg = rad2deg(angle);
-  		// console.log(i, angle, x, y);
+  		const rz = rad2deg(angle);
   		let { x, y } = getXYCoordinatesFromPolar(angle, RING_RADIUS);
   		const g = `r${i}`;
+  		// The ring segment (containing foundation and anything else put on it)
   		W.group({ n: g, g: 'ring' });
+  		// The ring foundation
   		W.plank({
   			n: `ring${i}`,
   			g,
   			x,
   			y,
-  			rz: deg,
+  			rz,
   			size: 20,
   			b: RING_COLOR,
   		});
-  		// y += 10;
+  		// The ring "building"
   		W.cube({
-  			n: `ringBuilding${i}`,
+  			n: `ringB${i}`,
   			g,
   			x,
   			y,
-  			rz: deg,
+  			rz,
   			size: 50,
   			b: RING_COLOR2,
   		});
   	});
   	// Create litter / stardust
-  	loop(200, (i) => {
-  		W.billboard({
-  			n: `litter${i}`,
-  			g: 'system',
-  			...randCoords(RING_RADIUS * 1.5),
-  			size: 1,
-  			b: '555e',
-  		});
-  	});
+  	// loop(200, (i) => {
+  	// 	W.billboard({
+  	// 		n: `litter${i}`,
+  	// 		g: 'system',
+  	// 		...randCoords(RING_RADIUS * 1.5),
+  	// 		size: 1,
+  	// 		b: '555e',
+  	// 	});
+  	// });
   	// Create physical crates
-  	loop(10, (i) => {
+  	loop(14, (i) => {
   		const b = pick(['de8b6f', '471b6e', '524bb3', '5796a1', '464040', '775b5b']);
   		const crate = {
   			n: `crate${i}`,
@@ -1371,17 +1434,15 @@
   			hp: 3,
   			drops: ['parts'],
   			explodes: { colors: ['464040', b], size: 2, count: 10 },
+  			p: 1,
   		};
-  		physicsEnts$1.push(crate);
   		renderables$1[crate.n] = crate;
   		W.cube(crate);
   	});
   	return {
-  		groups,
+  		// groups,
   		ship: ship$1,
   		renderables: renderables$1,
-  		physicsEnts: physicsEnts$1,
-  		klaxShips: klaxShips$1,
   	};
   }
 
@@ -1692,14 +1753,20 @@
   	W: W$1,
   	input,
   	paused: 0,
+  	trail: 0,
   	nextEnter: 0,
   	ogKlaxShipCount: 0,
+  	klaxShipLeft: 0,
+  	start() { this.i = setInterval(update, t); },
+  	stop() { clearInterval(this.i); },
+  	tick: 0,
   };
   let sys;
   let textures = {};
   const MAX_PARTS = 7;
   const MAX_VEL = 800;
   const VEL_FRICTION = .25; // Friction per tick (0.016)
+  const PHYSICS_COLLIDABLE = 1, PHYSICS_NON_COLLIDABLE = 2;
 
   // const sun = { rx: 0, ry: 0, ry: 0 };
 
@@ -1714,10 +1781,11 @@
   	'Check steering: [Tab] to toggle mouse-lock', // 0
   	'Scan: Hold [C]', // 1
   	'Thrusters: [W] and [S]', // 2
-  	'Fire weapons: [Space] or [Click]', // 3
-  	'Boost: Hold [Shift]', // 4
-  	'Klaxonian Ships Destroyed: {K} / {S}', // 5
-  	'Ring Repair Parts: {P} / {M}', // 6
+  	'Fire weapons: [Click], [F], or [R]', // 3
+  	'Boost: Hold [Shift] with [W] or [S]', // 4
+  	'Shields: [Space]', // 5
+  	'Klaxonian Ships Destroyed: {K} / {S}', // 6
+  	'Ring Repair Parts: {P} / {M}', // 7
   ].map((t) => ({ t, done: 0 }));
 
   function achieve(i) {
@@ -1725,13 +1793,12 @@
   		if (achievements[i].done) return;
   		achievements[i].done = 1;
   	}
-  	const left = sys.klaxShips.filter((k) => k.hp > 0).length;
-  	const kills = g.ogKlaxShipCount - left;
-  	if (left === 0) achievements[5].done = 1;
-  	if ((ship.inv.parts || 0) >= MAX_PARTS) achievements[6].done = 1;
+  	const kills = g.ogKlaxShipCount - g.klaxShipLeft;
+  	if (g.klaxShipLeft <= 0) achievements[6].done = 1;
+  	if ((ship.inv.parts || 0) >= MAX_PARTS) achievements[7].done = 1;
   	updateAchievements(kills);
   	if (achievements.length === achievements.filter((a) => a.done).length) {
-  		dialog('You did it! With those parts we should be able to get the Ring powered up again.<p>Thank you!</p>');
+  		dialog('You did it! With those parts we should be able to get the Ring powered up again.<p>Thank you!</p><p>(Refresh page to play again.)');
   	}
   }
 
@@ -1764,7 +1831,8 @@
   function titleDone() {
   	$id('hi').style.display = 'none';
   	return dialog(
-  		`<p>A Star-Hopper ship! You heard our distress call? 📡 We're under attack by a Klaxonian fleet!</p>`
+  		`<p>A Star-Hopper ship! You heard our distress call? 📡 We're under attack by a Klaxonian fleet!
+		They've disabled our defenses and solar farms.</p>`
   		+ `<p>The entire sector is dependent on the POWER generated by our Bunson Ring. ⚡`
   		+ `Please rescue us and help get the Ring operational again.</p>`
   	);
@@ -1802,8 +1870,9 @@
   	$html('txt', text + '<i data-key="Enter">Close [Enter]</i>');
   	c.add('show');
   	W$1.camera({ x: 0, y: 100, z: 0, a: 200 }, 500);
-  	g.W.move({ n: 'system', x: 1000, y: -500, z: -2500, a: 2000 }, 500);
+  	W$1.move({ n: 'system', x: 1000, y: -500, z: -2500, a: 2000 }, 500);
   	return g.nextEnter = () => {
+  		zzfx(...[.5,,259,.02,.02,.01,2,.19,,,-48,.01,,,3.4,.8,,.13,.01]);
   		s.opacity = '1';
   		c.remove('show');
   		g.paused = 0;
@@ -1819,9 +1888,8 @@
   		lockElt: c,
   		keys: {
   			Tab: () => { achieve(0); input.toggleLock(); },
-  			p: () => {
-  				g.paused = !g.paused;
-  			},
+  			p: () => { g.paused = !g.paused; },
+  			t: () => { g.trail = !g.trail; },
   			Enter: () => {
   				if (g.nextEnter) g.nextEnter = g.nextEnter();
   			},
@@ -1849,16 +1917,22 @@
   	addSphere('ufo', { y: 3, precision: 10 });
   	// addRect('rect', { y: 1 });
 
-  	sys = makeStarSystem(W$1, SPACE_SIZE);
-  	['renderables', 'ship', 'physicsEnts', 'klaxShips'].forEach((k) => {
+  	sys = makeStarSystem(W$1, SPACE_SIZE, textures);
+  	['renderables', 'ship'].forEach((k) => {
   		window[k] = sys[k];
   		g[k] = sys[k];
   	});
 
-  	sys.klaxShips.forEach((k, i) => {
-  		W$1.billboard({ n: `scan${i}`, g: 'system', x: k.x, y: k.y, z: k.z, size: 100, b: SCAN_COLOR });
+  	const ks = Object.entries(renderables).filter(([,o]) => o.isKlax);
+  	ks.forEach(([,o], i) => {
+  		if (o.isKlax) {
+  			const n = `scan${i}`;
+  			const scan = { n, g: 'system', x: o.x, y: o.y, z: o.z, size: SCAN_SIZE, t: textures.scan };
+  			renderables[n] = scan;
+  			W$1.billboard(scan);
+  		}
   	});
-  	g.ogKlaxShipCount = sys.klaxShips.length;
+  	g.ogKlaxShipCount = g.klaxShipLeft = ks.length;
   	achieve();
   }
 
@@ -1897,22 +1971,22 @@
   	});
   }
 
-  function dmg(a, b) {
+  function dmg(a, b) { // a = attacker, b = defender
   	if (a.damage && b.hp) {
   		const isShipHurt = (b === ship);
-  		console.log('Damage', b.n);
-  		b.hp -= a.damage;
+  		const shieldPercent = clamp(b.shields / 100, 0, 1);
+  		b.hp -= (a.damage * (1 - shieldPercent));
+  		console.log('Shield %', shieldPercent, '\n', b);
   		if (a.destroyOnDamage) a.decay = 0;
   		if (b.hp <= 0) {
-  			console.log('Destroy', b.n);
+  			// console.log('Destroy', b.n);
   			b.decay = 0;
   			if (b.drops) {
   				b.drops.forEach((drop) => ship.inv[drop] = (ship.inv[drop] || 0) + 1);
   			}
-  			if (b.explodes) spawnExplosion(b);
-  			achieve();
+  			if (b.explodes) spawnExplosion(b, b.explodes);
   		} else {
-  			spawnExplosion({ x: b.x, y: b.y, z: b.z, explodes: { count: 10 }});
+  			spawnExplosion({ x: b.x, y: b.y, z: b.z }, { count: 8 });
   		}
   		const vol = isShipHurt ? 1.5 : .7;
   		zzfx(...[vol,,416,.02,.21,.52,4,2.14,.2,,,,,1.7,,.9,,.44,.12,.23]);
@@ -1920,8 +1994,6 @@
   	}
   	a.aggro += 1;
   	b.aggro += 1;
-  	a.shieldOpacity += 5;
-  	b.shieldOpacity += 5;
   }
   function collide(e1, e2, dist) {
   	// Set flags
@@ -1957,30 +2029,19 @@
   	});
   }
 
-  function checkCollisions(ents) {
-  	loop(ents.length, (i) => {
-  		checkCollisionOne(ents[i], ents);
-  	});
-  }
-
   function pass(a, b) {
-  	return (a.passthru && a.passthru.includes(b.passType));
+  	return (a.p !== PHYSICS_COLLIDABLE || b.p !== PHYSICS_COLLIDABLE
+  		|| (a.passthru && a.passthru.includes(b.passType)));
   }
 
-  function checkCollisionOne(e1, ents) {
-  	if (e1.collided) return;
+  function checkCollision(e1, ents) {
+  	if (e1.collided || e1.p !== PHYSICS_COLLIDABLE) return;
   	loop(ents.length, (w) => {
   		const e2 = ents[w];
   		if (pass(e1, e2) || pass(e2, e1) || e1 === e2)  return;
   		if (e2.collided) return;
   		const d = vec3(e1).distance(e2);
   		if (d <= (e1.r + e2.r)) collide(e1, e2, d);
-  	});
-  }
-
-  function move(things = {}) {
-  	Object.keys(things).forEach((key) => {
-  		W$1.move({ n: key, ...things[key] }, 0);
   	});
   }
 
@@ -2052,23 +2113,25 @@
   		vel: { ...v },
   		thrust: { ...u.scale(tScale) },
   		// friction: 0,
-  		decay: 6,
+  		decay: 5,
   		damage,
   		r: 5,
   		passthru,
   		mass: 0.01,
   		size,
   		destroyOnDamage: 1,
+  		p: PHYSICS_COLLIDABLE,
   	};
-  	physicsEnts.push(plasma);
   	renderables[plasma.n] = plasma;
   	W$1.billboard({ ...plasma, t });
   }
 
-  function spawnExplosion(where) {
-  	let { x, y, z, explodes = {} } = where;
-  	const { count = 20, size = 2, colors = ['464040', 'de8b6f', 'b0455a'] } = explodes;
-  	console.log('Exploding for', where.n, count);
+  function spawnExplosion(where, explodes) {
+  	let { x, y, z } = where;
+  	const {
+  		count = 20, size = 2, colors = ['464040', 'de8b6f', 'b0455a'], maxDecay = 10
+  	} = explodes || where.explodes || {};
+  	// console.log('Exploding for', where.n, count);
   	loop(count, () => {
   		const vel = vec3(where.vel || { x: 0, y: 0, z: 0 });
   		['x', 'y', 'z'].forEach((w) => {
@@ -2080,7 +2143,7 @@
   			y: y + rand(-.5, .5),
   			z: z + rand(-.5, .5),
   			vel,
-  			decay: rand(1, 10),
+  			decay: rand(1, maxDecay),
   			r: 1,
   			g: 'system',
   			size: max(size + rand(-size/2, size/2), .2),
@@ -2089,11 +2152,31 @@
   			mass: 0.01,
   			b: pick(colors),
   			destroyOnDamage: 1,
+  			p: PHYSICS_NON_COLLIDABLE,
   		};
-  		physicsEnts.push(explosion);
   		renderables[explosion.n] = explosion;
   		W$1.billboard({ ...explosion });
   	});
+  }
+
+  function spawnTrail(o, sec) {
+  	if (o.trailCooldown) {
+  		cool(o, 'trailCooldown', sec);
+  		return;
+  	}
+  	ship.trailCooldown = 0.1;
+  	if (vec3(o.vel).length() === 0) return;
+  	const { x, y, z } = o;
+  	const trail = {
+  		n: `${o.n}trail${uid()}`,
+  		x, y, z,
+  		decay: 10,
+  		g: 'system',
+  		size: rand(.1, .3),
+  		b: '7666',
+  	};
+  	renderables[trail.n] = trail;
+  	W$1.billboard({ ...trail });
   }
 
   function updateUI() {
@@ -2101,25 +2184,28 @@
   	const dir = (v.x > v.y && v.x > v.z) ? 'X' : (
   		(v.y > v.x && v.y > v.z) ? 'Y' : 'Z'
   	);
-  	const html = '<b>' + [
+  	const html = (g.paused ? '<b>Paused</b>' : '') + '<b>' + [
   		`Velocity: ${round(v.length())} (${dir})`,
   		`Pitch: ${round(steer.rx + 90)}, Yaw: ${round(steer.ry) % 360}`,
-  		`Hull: ${ship.hp}`,
+  		`Power: ${Math.floor(ship.power)}`,
+  		`Shields: ${Math.floor(ship.shields)}`,
+  		`Hull: ${Math.floor(ship.hp * 10) / 10}`,
   	].join('</b><b>') + '</b>';
   	$html('si', html);
-  }
-
-  function removeFromArray(n, arr) {
-  	const i = arr.findIndex((o) => o.n === n);
-  	if (i !== -1) arr.splice(i, 1);
   }
 
   function zoom(n) {
   	camOffset.zoom = clamp(camOffset.zoom + n, 0, 100);
   }
 
+  function playDud() {
+  	zzfx(...[.5,,144,.01,.04,.17,1,.77,,,-119,.09,,,31,.1,,.84,.03,.06]);
+  }
+
   function update() {
   	if (g.paused) return;
+  	g.tick++;
+  	if (g.tick > 100000) g.tick = 0;
   	const sec = t / 1000;
 
   	// Handle inputs and update player ship
@@ -2135,65 +2221,106 @@
   	const boost = down.Shift ? 2 : 1;
   	let thrustAmount = 0; 
   	if (boost > 1) achieve(4);
-  	if (down.s) {
+  	if (ship.power <= 0) ; else if (down.s) {
   		thrustAmount = ship.thrustForce * boost * -.5;
   		down.w = 0;
   	} else if (down.w) {
   		thrustAmount = ship.thrustForce * boost;
   	}
   	thrust(ship, thrustAmount);
-  	const flameColor = (thrustAmount > 0) ? FLAME_ON_COLOR : FLAME_OFF_COLOR;
-  	W$1.move({ n: 'sFlame1', b: flameColor });
-  	W$1.move({ n: 'sFlame2', b: flameColor });
-  	if (thrustAmount === 0) {
-  		W$1.delete('sIgnite1');
-  		W$1.delete('sIgnite2');
-  	} else {
+  	{
+  		const flameColor = (thrustAmount > 0) ? FLAME_ON_COLOR : FLAME_OFF_COLOR;
+  		W$1.move({ n: 'sFlame1', b: flameColor });
+  		W$1.move({ n: 'sFlame2', b: flameColor });
+  		ship.ignition = lerp(0.2, ship.ignition, (thrustAmount) ? ship.ignitionSize : 0.0001);
+  		W$1.move({ n: 'sIgnite1', size: ship.ignition, y: SHIP_SIZE * (thrustAmount < 0 ? .6 : -1.31) });
+  		W$1.move({ n: 'sIgnite2', size: ship.ignition, y: SHIP_SIZE * (thrustAmount < 0 ? .6 : -1.31)  });
+  	}
+  	if (thrustAmount) {
+  		ship.power -= ship.enginePowerUsage;
   		const vol = (boost > 1) ? .15 : .1;
   		const bitCrush = (boost > 1) ? .2 : .8;
   		zzfx(...[vol,,794,.02,.3,.32,,3.96,,.7,,,.16,2.1,,bitCrush,.1,.31,.27]);
   		achieve(2);
-  		const base = { g: 'ship', y: SHIP_SIZE * -1.31, rx: 70, size: .2, t: textures.tf };
-  		W$1.billboard({ ...base, n: 'sIgnite1', x: -SHIP_SIZE * 1.1  });
-  		W$1.billboard({ ...base, n: 'sIgnite2', x: SHIP_SIZE * 1.1 });
   	}
+  	
   	const click = input.getClick();
-  	if (ship.fireCooldown === 0 && (
-  		down[' '] || (click && click.locked)
-  	)) {
+  	if (ship.fireCooldown === 0	&& (down.f || down.r || (click && click.locked))) {
   		achieve(3);
-  		spawnPlasma((click && click.right) ? 'photon' : 'plasma', ship, 'plasma', ['ship', 'plasma', 'klaxPlasma']);
-  		ship.fireCooldown = 0.3;
+  		if (ship.power < ship.weaponPowerUsage) {
+  			playDud();
+  		} else {
+  			ship.power -= ship.weaponPowerUsage;
+  			spawnPlasma(
+  				(click && click.right || down.r) ? 'photon' : 'plasma',
+  				ship,
+  				'plasma',
+  				['ship', 'plasma', 'klaxPlasma'],
+  			);
+  			ship.fireCooldown = 0.3;
+  		}
   	}
-  	if (down.f) {
-  		spawnExplosion(ship, ship.explodes);
+  	if (down[' ']) {
+  		if (ship.power > 12) { // min power needed to power shields
+  			const chargeUp = min(ship.power, ship.shieldPower - ship.shields);
+  			ship.shields += chargeUp;
+  			ship.power -= chargeUp;
+  			zzfx(...[.4,,99,,.23,.12,3,1.07,,5,,,.06,,,1,,.7,.24,.32]);
+  			achieve(5);
+  		} else playDud();
   	}
-  	// Scan
-  	if (down.c) achieve(1);
-  	klaxShips.forEach((k, i) => {
-  		W$1.move({ n: `scan${i}`, x: k.x, y: k.y, z: k.z, size: SCAN_SIZE,
-  			b: (k.hp > 0 && down.c) ? SCAN_COLOR : '0000',
-  		});
-  	});
+  	// For testing
+  	if (down.y) spawnExplosion(ship, ship.explodes);
+  	// Scan (animations happen below)
+  	if (down.c) achieve(1); 
 
-  	// Player cool down
-  	ship.fireCooldown = max(ship.fireCooldown - sec, 0);
+  	// Get arrays of physics entities and enemy ships
+  	const physicsEnts = [ship];
+  	const klaxShips = [];
+  	Object.entries(renderables).forEach(([,o]) => {
+  		if (o.p) physicsEnts.push(o);
+  		if (o.isKlax) klaxShips.push(o);
+  	});
+  	g.klaxShipLeft = klaxShips.length;
 
   	// Do enemy thrust, rotation, cooldowns, and AI
-  	klaxShips.forEach((k) => updateKlaxShip(k, sec));
+  	klaxShips.forEach((k, i) => {
+  		updateKlaxShip(k, sec);
+  		// Update scan
+  		const scan = (down.c && k.hp > 0) ? {
+  			x: k.x, y: k.y, z: k.z,
+  			size: 110, b: SCAN_COLOR,
+  		} : {
+  			size: .1, b: '0000',
+  		};
+  		renderables[`scan${i}`] = { ...renderables[`scan${i}`], ...scan };
+  	});
 
   	// Do collisions
-  	checkCollisions(physicsEnts);
+  	loop(physicsEnts.length, (i) => checkCollision(physicsEnts[i], physicsEnts));
   	// Do physics, and clear collided flag
   	physicsEnts.forEach((o) => {
   		o.collided = 0;
   		physics(o, sec);
   	});
 
+  	// Player cool down and recharge
+  	ship.fireCooldown = max(ship.fireCooldown - sec, 0);
+  	ship.power = min(ship.maxPower, ship.power + ship.recharge);
+  	ship.shields = max(0, ship.shields - ship.shieldsDecayAmount);
+
   	// Check for player death
-  	if (ship.hp <= 0) return gameOver();
+  	if (ship.hp <= 0) {
+  		ship.size = .01;
+  		spawnExplosion(ship);
+  		(async () => {
+  			await wait(1500);
+  			return gameOver();
+  		})();
+  	}
   	
-  	// Do steering
+  	
+  	// Player Ship Steering
   	{
   		// const { ry, rx } = steer;
   		const lockMove = input.getLockMove();
@@ -2216,16 +2343,16 @@
   		cam.fov = lerp(0.1, cam.fov, cam.targetFov + speedFov);
   		const fovChanged = abs(cam.fov - cam.lastFov) > 0.001;
   		cam.lastFov = cam.fov;
-  		let camSettings = { ...unit, ...addAngles(camOffset, steer), a: 100 };
+  		let camSettings = { ...unit, ...addAngles(camOffset, steer), a: t };
   		if (fovChanged) camSettings = { ...camSettings, ...cam };
   		W$1.camera(camSettings);
   	}
-  	{
-  		const { x, y, z, rx, ry, rz } = ship;
-  		W$1.move({ n: 'ship', rx, ry, rz });
-  	}
+
+  	if (g.trail) spawnTrail(ship, sec);
 
   	// Decay
+  	// Note: This has to be done towards the end because we're not removing the objects from the
+  	// physics array or klax ship array
   	Object.keys(renderables).forEach((k) => {
   		const p = renderables[k];
   		if (typeof p.decay === 'number') {
@@ -2238,20 +2365,26 @@
   				} else {
   					W$1.delete(p.n);
   				}
-  				removeFromArray(p.n, physicsEnts);
-  				removeFromArray(p.n, klaxShips);
   				delete renderables[k];
+  				achieve();
   			}
   		}
   	});
 
   	// Animate the system and renderables
-  	move({
+  	const shieldOp = clamp(ship.shields, 10, 99);
+  	W$1.move({ n: 'sShield', b: `de8b6f${shieldOp}`, size: ship.shields ? 1.2 : 0.01, a: 100 });
+  	const allMovingThings = {
+  		ship: { ...ship, x: 0, y: 0, z: 0 },
   		...renderables,
   		system: { x: -ship.x, y: -ship.y, z: -ship.z, a: t },
   		...updateSystem(t),
+  	};
+  	Object.keys(allMovingThings).forEach((key) => {
+  		W$1.move({ n: key, ...allMovingThings[key], a: t }, 0);
   	});
-  	updateUI();
+
+  	if (g.tick % 4 === 0) updateUI();
   }
 
   addEventListener('DOMContentLoaded', async () => {
@@ -2261,7 +2394,7 @@
   	await wait(30);
   	title();
   	// titleDone();
-  	setInterval(update, t);
+  	g.start();
   });
 
   window.g = g;

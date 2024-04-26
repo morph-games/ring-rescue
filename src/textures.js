@@ -1,5 +1,5 @@
 import { $id, doc } from './dom.js';
-import { STAR_COLOR, PLASMA_COLOR1, PLASMA_COLOR2, PLASMA_COLOR3, RING_COLOR } from './colors.js';
+import { STAR_COLOR, PLASMA_COLOR1, PLASMA_COLOR2, PLASMA_COLOR3, RING_COLOR, SCAN_COLOR } from './colors.js';
 import { loop, PI, TWO_PI, cos, sin, getXYCoordinatesFromPolar } from './utils.js';
 
 function makeCanvas(id, size) {
@@ -25,19 +25,38 @@ function makeStarFieldCanvas(id, gen) {
 function makeStarCanvas(points = 4, color = '#f00', id, depth = .4, size = 600) {
 	const [cElt, c, h] = makeCanvas(id, size);
 	c.clearRect(0, 0, size, size);
-	c.beginPath();
+	const arr = [];
 	const a = TWO_PI / points;
 	const line = (a, r) => {
 		const { x, y } = getXYCoordinatesFromPolar(a, r);
-		c.lineTo(h + x, h + y);
+		arr.push([h + x, h + y]);
 	};
 	loop(points, (i) => {
 		line(a * i, h);
 		line(a * i + (a / 2), h * depth);
 	});
-	c.fillStyle = color;
-	c.fill();
+	path(c, arr, color);
 	return cElt;
+}
+
+function path(c, arr, fillStyle, strokeArr) {
+	c.beginPath();
+	if (typeof arr === 'function') {
+		arr();
+	} else {
+		c.moveTo(...arr[0]);
+		arr.forEach((pts) => c.lineTo(...pts));
+	}
+	if (fillStyle) {
+		c.fillStyle = fillStyle;
+		c.fill();
+	}
+	if (strokeArr) {
+		c.strokeStyle = strokeArr[0]; // '#8bc7bf';
+		c.lineWidth = strokeArr[1];
+		c.stroke();
+	}
+	c.closePath();
 }
 
 function makeRabbit(front) {
@@ -59,13 +78,10 @@ function makeRabbit(front) {
 	c.fill();
 	c.closePath();
 
-	const e = (x, y, radiusX, radiusY, rot = 0, color = '#eee', opt = {}) => {
-		c.beginPath();
-		c.ellipse(x, y, radiusX, radiusY, rot, 0, TWO_PI);
-		c.fillStyle = color;
-		c.fill();
-		if (opt.hook) opt.hook();
-		c.closePath();
+	const e = (x, y, radiusX, radiusY, rot = 0, color = '#eee', strokeArr) => {
+		path(c, () => {
+			c.ellipse(x, y, radiusX, radiusY, rot, 0, TWO_PI);
+		}, color, strokeArr);
 	};
 
 	if (front) {
@@ -89,22 +105,11 @@ function makeRabbit(front) {
 		e(300, 350, 20, 10, 0, '#de8b6f');
 
 		// Mouth
-		c.beginPath();
-		c.moveTo(300, 450);
-		c.lineTo(150, 400);
-		c.lineTo(450, 400);
-		c.fillStyle = '#222';
-		c.fill();
-		c.closePath();
+		path(c, [[300, 450], [150, 400], [450, 400]], '#222');
 	}
 
 	// helmet 
-	const hook = () => {
-		c.strokeStyle = '#8bc7bf';
-		c.lineWidth = 10;
-		c.stroke();
-	};
-	e(300, 320, 290, 180, 0, '#ffffff55', { hook });
+	e(300, 320, 290, 180, 0, '#ffffff55', ['#8bc7bf', 10]);
 
 	// $id('loaded').style.display = 'block';
 	// cElt.style.position = 'absolute';
@@ -115,6 +120,23 @@ function makeRabbit(front) {
 	return cElt;
 }
 
+function makeHopArmor(c1, c2) {
+	const [cElt, c] = makeCanvas(`hopArmor${c1}${c2}`, 50);
+	path(c, [[0,0], [0,50], [50,50], [50,0], [0,0]], c1, [c2, 6]);
+	path(c, [[10, 0], [10, 10], [40, 10], [40, 0]], null, [c2, 2]);
+	path(c, [[0, 30], [20, 30], [20, 40], [50, 40]], null, [c2, 2]);
+	return cElt;
+}
+
+// function makeCircle(color) {
+// 	const [cElt, c] = makeCanvas(`circle${color}`, 400);
+// 	path(c, () => {
+// 		c.arc(200, 200, 190, 0, TWO_PI);
+// 		// c.ellipse(200, 200, 190, 190, 0, 0, TWO_PI);
+// 	}, '#000', [color, 10]);
+// 	return cElt;
+// }
+
 function makeTextures() {
 	return {
 		tf: makeStarCanvas(9, STAR_COLOR, 'tf', .3),
@@ -123,7 +145,8 @@ function makeTextures() {
 		klaxPlasma: makeStarCanvas(15, PLASMA_COLOR3, 'klaxPlasma', .3),
 		rabbit: makeRabbit(1),
 		pilot: makeRabbit(0),
+		scan: makeStarCanvas(8, PLASMA_COLOR3, 'scan', 1),
 	};
 }
 
-export { makeStarCanvas, makeStarFieldCanvas, makeTextures, makeRabbit };
+export { makeStarCanvas, makeStarFieldCanvas, makeTextures, makeRabbit, makeHopArmor };

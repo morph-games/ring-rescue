@@ -1,7 +1,7 @@
 // + https://lospec.com/palette-list/moondrom
 const BG_COLOR = '2a242b';
-const SHIP_COLOR = '5796a1';
-const SHIP_COLOR2 = '8bc7bf';
+const SHIP_COLOR = '#5796a1';
+const SHIP_COLOR2 = '#8bc7bf';
 const RING_COLOR = '#5796a1';
 const RING_COLOR2 = '478691';
 const P1_COLOR = '775b5b';
