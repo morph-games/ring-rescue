@@ -354,16 +354,15 @@
 
       // If the object has an animation, increment its timer...
       if(object.f < object.a) object.f += dt;
-      
       // ...but don't let it go over the animation duration.
-      if(object.f > object.a) object.f = object.a;
+      else object.f = object.a;
 
       // Compose the model matrix from lerped transformations
-      W$1.next[object.n].m = W$1.animation(object.n);
+      // Or Use the custom matrix provided with the `M` property
+      W$1.next[object.n].m = W$1.next[object.n].M || W$1.animation(object.n);
 
       // If the object is in a group:
       if(W$1.next[object.g]){
-
         // premultiply the model matrix by the group's model matrix.
         W$1.next[object.n].m.preMultiplySelf(W$1.next[object.g].M || W$1.next[object.g].m);
       }
@@ -372,14 +371,15 @@
       W$1.gl.uniformMatrix4fv(
         W$1.gl.getUniformLocation(W$1.program, 'm'),
         false,
-        (W$1.next[object.n].M || W$1.next[object.n].m).toFloat32Array()
+        W$1.next[object.n].m.toFloat32Array()
       );
       
       // send the inverse of the model matrix to the vertex shader
       W$1.gl.uniformMatrix4fv(
         W$1.gl.getUniformLocation(W$1.program, 'im'),
         false,
-        (new DOMMatrix(W$1.next[object.n].M || W$1.next[object.n].m)).invertSelf().toFloat32Array()
+        // (new DOMMatrix(W.next[object.n].M || W.next[object.n].m)).invertSelf().toFloat32Array()
+        DOMMatrix.fromMatrix(W$1.next[object.n].m).invertSelf().toFloat32Array()
       );
       
       // Don't render invisible items (camera, light, groups, camera's parent)

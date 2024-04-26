@@ -25,5 +25,5 @@ Controls:
 Final size: 
 
 * Bundled, closured, uglified, minified (see `steamroll.mjs` for compression process)
-* 13,223 bytes (99.3% of 13,312 for js13k rules)
-* 89 bytes left
+* 13,232 bytes (99.4% of 13,312 for js13k rules)
+* 80 bytes left
