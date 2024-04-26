@@ -34,7 +34,7 @@ const ship = {
 	rx: -90, ry: 0, rz: 0,
 	vel: { x: 0, y: 0, z: 0 },
 	thrust: { x: 0, y: 0, z: 0 },
-	thrustForce: 0.06,
+	thrustForce: 0.05,
 	fireCooldown: 0,
 	r: 2, // collision radius
 	passType: 'ship',

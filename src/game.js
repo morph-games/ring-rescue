@@ -241,8 +241,8 @@ function physics(o, sec) {
 
 function dmg(a, b) { // a = attacker, b = defender
 	if (a.damage && b.hp) {
-		const isShipHurt = (b === ship)
-		const shieldPercent = clamp(b.shields / 100, 0, 1);
+		const isShipHurt = (b === ship);
+		const shieldPercent = clamp((b.shields || 0) / 100, 0, 1);
 		b.hp -= (a.damage * (1 - shieldPercent));
 		// console.log('Shield %', shieldPercent, '\n', b);
 		if (a.destroyOnDamage) a.decay = 0;
